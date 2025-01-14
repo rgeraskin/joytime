@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,9 +56,9 @@ func tgBot(db *sql.DB) (*tele.Bot, error) {
 		btnParentRewardsBack   = selectorParentRewards.Data("Назад", "parent_rewards_back")
 
 		selectorParentChecks   = &tele.ReplyMarkup{}
-		btnParentChecksApprove = selectorParentChecks.Data("Подтвердить", "parent_check_approve")
-		btnParentChecksReject  = selectorParentChecks.Data("Отклонить", "parent_check_reject")
-		btnParentChecksBack    = selectorParentChecks.Data("Назад", "parent_check_back")
+		btnParentChecksApprove = selectorParentChecks.Data("Подтвердить ✅", "parent_check_approve")
+		btnParentChecksReject  = selectorParentChecks.Data("Отклонить ❌", "parent_check_reject")
+		btnParentChecksBack    = selectorParentChecks.Data("Назад ⬅️", "parent_check_back")
 
 		selectorParentHistory = &tele.ReplyMarkup{}
 		btnParentHistoryBack  = selectorParentHistory.Data("Назад", "parent_history_back")
@@ -82,14 +83,22 @@ func tgBot(db *sql.DB) (*tele.Bot, error) {
 	)
 	selectorParent.Inline(
 		selectorParent.Row(btnParentChecks),
-		selectorParent.Row(btnParentHistory, btnParentTasks, btnParentRewards),
+		selectorParent.Row(
+			// btnParentHistory,
+			btnParentTasks,
+			btnParentRewards,
+		),
 	)
 	selectorParentTasks.Inline(
 		selectorParentTasks.Row(btnParentTasksAdd, btnParentTasksDelete),
 		selectorParentTasks.Row(btnParentTasksEdit, btnParentTasksBack),
 	)
 	selectorParentRewards.Inline(
-		selectorParentRewards.Row(btnParentRewardsAdd, btnParentRewardsEdit, btnParentRewardsDelete),
+		selectorParentRewards.Row(
+			btnParentRewardsAdd,
+			btnParentRewardsEdit,
+			btnParentRewardsDelete,
+		),
 		selectorParentRewards.Row(btnParentRewardsBack),
 	)
 	selectorParentChecks.Inline(
@@ -190,11 +199,14 @@ func tgBot(db *sql.DB) (*tele.Bot, error) {
 	b.Handle(tele.OnText, func(c tele.Context) error {
 		slog.Info("Received text message")
 		return tgHandleText(
-			c, db,
+			c, db, b,
 			selectorParentTasks,
 			selectorParentRewards,
+			selectorParentChecks,
 			selectorParent,
 			selectorChild,
+			selectorChildTasks,
+			selectorChildRewards,
 		)
 	})
 
@@ -302,7 +314,7 @@ func tgBot(db *sql.DB) (*tele.Bot, error) {
 	// child rewards claim
 	b.Handle(&btnChildRewardsClaim, func(c tele.Context) error {
 		slog.Info("Received child rewards claim command")
-		return c.Send("Получить")
+		return tgHandleChildRewardsClaim(c, db)
 	})
 	// child rewards back
 	b.Handle(&btnChildRewardsBack, func(c tele.Context) error {
@@ -313,96 +325,77 @@ func tgBot(db *sql.DB) (*tele.Bot, error) {
 	return b, err
 }
 
-// это пиздец какой-то
-type TGHandleCommmonsDiffs struct {
-	common         string
-	no             string
-	many           string
-	questionWhat   string
-	questionAdd    string
-	questionEdit   string
-	questionDelete string
-}
-
-func tgGetCommonsDiffs(common string) TGHandleCommmonsDiffs {
-	switch common {
-	case "tasks":
-		return TGHandleCommmonsDiffs{
-			common:         common,
-			no:             "Заданий нет",
-			many:           "Задания",
-			questionWhat:   "Что сделать с заданиями?",
-			questionAdd:    "Как назвать новое задание?",
-			questionEdit:   "Для какого задания изменить награду? Введи его номер",
-			questionDelete: "Какое задание удалить? Введи его номер",
-		}
-	case "rewards":
-		return TGHandleCommmonsDiffs{
-			common:         common,
-			no:             "Наград нет",
-			many:           "Награды",
-			questionWhat:   "Что сделать с наградами?",
-			questionAdd:    "Как назвать новую награду?",
-			questionEdit:   "Для какой награды изменить цену? Введи ее номер",
-			questionDelete: "Какую награду удалить? Введи ее номер",
-		}
-	}
-	return TGHandleCommmonsDiffs{}
-}
-
 // tasks
 func tgHandleTasks(c tele.Context, db *sql.DB, selector *tele.ReplyMarkup) error {
-	return tgHandleCommmons(tgGetCommonsDiffs("tasks"), selector, c, db)
+	s := TGShowCommonsListStrings{
+		Common:   "tasks",
+		Empty:    "Список заданий пуст",
+		Many:     "Список заданий",
+		Question: "Что делаем с заданиями?",
+	}
+
+	slog.Error(c.Data())
+	tme := time.Now().Second()
+	selector.Data("Добавить 1", "parent_tasks_add", fmt.Sprintf("aaa  %d", tme))
+	return tgHandleCommmons(c, db, selector, s)
 }
 
 // rewards
 func tgHandleRewards(c tele.Context, db *sql.DB, selector *tele.ReplyMarkup) error {
-	return tgHandleCommmons(tgGetCommonsDiffs("rewards"), selector, c, db)
-}
-
-func tgHandleParentCommonsAction(handler string, question string, c tele.Context, db *sql.DB) error {
-	err := dbUsersSetTextInput(
-		db,
-		c.Sender().ID,
-		DBTextInput{
-			For: sql.NullString{String: handler, Valid: true},
-		},
-	)
-	if err != nil {
-		slog.Error(err.Error())
-		return c.Send("Internal error")
+	s := TGShowCommonsListStrings{
+		Common:   "rewards",
+		Empty:    "Список наград пуст",
+		Many:     "Список наград",
+		Question: "Что делаем с наградами?",
 	}
-
-	return c.Send(question)
+	return tgHandleCommmons(c, db, selector, s)
 }
 
-func tgShowCommonsList(diffs TGHandleCommmonsDiffs, user DBRecordUser, selector *tele.ReplyMarkup, c tele.Context, db *sql.DB) error {
-	commons, err := dbCommonsList(diffs.common, db, user.Family_UID.String)
+type TGShowCommonsListStrings struct {
+	Common   string // 'tasks' or 'rewards'
+	Empty    string // "Список пуст"
+	Many     string // "Список заданий"
+	Question string // "Что делаем?"
+}
+
+func tgShowCommonsList(
+	c tele.Context,
+	db *sql.DB,
+	selector *tele.ReplyMarkup,
+	s TGShowCommonsListStrings,
+	user DBRecordUser,
+) error {
+	commons, err := dbCommonsList(s.Common, db, user.Family_UID.String)
 	if err != nil {
 		slog.Error(err.Error())
 		return c.Send("Internal error")
 	}
 
 	if len(commons) == 0 {
-		return c.Send(diffs.no, selector)
+		return c.Send(s.Empty, selector)
 	}
 
-	message := fmt.Sprintf("%s:\n", diffs.many)
+	message := fmt.Sprintf("%s:\n", s.Many)
 	for i, common := range commons {
 		message += fmt.Sprintf("%d. %s - %d 💎\n", i+1, common.Name, common.Tokens)
 	}
-	message += fmt.Sprintf("\n%s\n", diffs.questionWhat)
+	message += fmt.Sprintf("\n%s\n", s.Question)
 
 	return c.Send(message, selector)
 }
 
-func tgHandleCommmons(diffs TGHandleCommmonsDiffs, selector *tele.ReplyMarkup, c tele.Context, db *sql.DB) error {
+func tgHandleCommmons(
+	c tele.Context,
+	db *sql.DB,
+	selector *tele.ReplyMarkup,
+	s TGShowCommonsListStrings,
+) error {
 	user, err := dbUserFind(db, c.Sender().ID)
 	if err != nil {
 		slog.Error(err.Error())
 		return c.Send("Internal error")
 	}
-	return tgShowCommonsList(diffs, user, selector, c, db)
+	return tgShowCommonsList(c, db, selector, s, user)
 }
 
 func tgHandleTextFamilyID(
@@ -446,135 +439,97 @@ func tgHandleTextFamilyID(
 	return c.Send("Добро пожаловать в семью! Начнем?", selectorChild)
 }
 
+// handle text message input
 func tgHandleText(
 	c tele.Context,
 	db *sql.DB,
+	b *tele.Bot,
 	selectorParentTasks *tele.ReplyMarkup,
 	selectorParentRewards *tele.ReplyMarkup,
+	selectorParentChecks *tele.ReplyMarkup,
 	selectorParent *tele.ReplyMarkup,
 	selectorChild *tele.ReplyMarkup,
+	selectorChildTasks *tele.ReplyMarkup,
+	selectorChildRewards *tele.ReplyMarkup,
 ) error {
+	// to distinguish what is the type of input we've got
+	// we need to get explanation from the database
 	textInput, err := dbUsersGetTextInput(db, c.Sender().ID)
 	if err != nil {
 		slog.Error(err.Error())
 		return c.Send("Internal error")
 	}
 
+	// based on the explanation we can handle the input
 	switch textInput.For.String {
+	// the input is family ID number. We need to join the family
 	case "family_id":
 		return tgHandleTextFamilyID(c, db, selectorParent, selectorChild)
+		// the input is task name. We need it to add new task
 	case "parent_tasks_add_name":
 		{
-			return tgHandleTextParentCommonsAddName(
-				c, db, selectorParentTasks,
-				"tasks",
-				"Задание с таким именем уже существует",
-				"Во сколько жетонов оценить задание?",
-				"parent_tasks_add_tokens",
-			)
+			return tgHandleTextParentTasksAddName(c, db, selectorParentTasks)
 		}
+		// the input is reward name. We need it to add new reward
 	case "parent_rewards_add_name":
 		{
-			return tgHandleTextParentCommonsAddName(
-				c, db, selectorParentRewards,
-				"rewards",
-				"Награда с таким именем уже существует",
-				"Во сколько жетонов оценить стоимость награды?",
-				"parent_rewards_add_tokens",
-			)
+			return tgHandleTextParentRewardsAddName(c, db, selectorParentRewards)
 		}
+		// the input is token number for task. We need it to add new task
 	case "parent_tasks_add_tokens":
 		{
-			return tgHandleTextParentCommonsAddReward(
-				c, db, selectorParentTasks,
-				textInput,
-				"tasks",
-				"Награда должна быть числом",
-				"Задание добавлено!",
-			)
+			return tgHandleTextParentTasksAddTokens(c, db, selectorParentTasks, textInput)
 		}
+		// the input is token number for reward. We need it to add new reward
 	case "parent_rewards_add_tokens":
 		{
-			return tgHandleTextParentCommonsAddReward(
-				c, db, selectorParentRewards,
-				textInput,
-				"rewards",
-				"Награда должна быть числом",
-				"Награда добавлена!",
-			)
+			return tgHandleTextParentRewardsAddTokens(c, db, selectorParentRewards, textInput)
 		}
+		// the input is task number. We need it to edit task
 	case "parent_tasks_edit_name":
 		{
-			return tgHandleTextParentCommonsEditName(
-				c, db,
-				"tasks",
-				"Номер задания должен быть числом",
-				"Нет задания с таким номером",
-				"Во сколько жетонов оценить задание?",
-				"parent_tasks_edit_tokens",
-			)
+			return tgHandleTextParentTasksEditName(c, db)
 		}
+		// the input is reward number. We need it to edit reward
 	case "parent_rewards_edit_name":
 		{
-			return tgHandleTextParentCommonsEditName(
-				c, db,
-				"rewards",
-				"Номер награды должен быть числом",
-				"Нет награды с таким номером",
-				"Во сколько жетонов оценить награду?",
-				"parent_rewards_edit_tokens",
-			)
+			return tgHandleTextParentRewardsEditName(c, db)
 		}
+		// the input is token number for task. We need it to edit task
 	case "parent_tasks_edit_tokens":
 		{
-			return tgHandleTextParentCommonsEditTokens(
-				c, db, selectorParentTasks, textInput,
-				"tasks",
-				"Награда за задание должна быть числом",
-				"Задание изменено!",
-			)
+			return tgHandleTextParentTasksEditTokens(c, db, selectorParentTasks, textInput)
 		}
+		// the input is token number for reward. We need it to edit reward
 	case "parent_rewards_edit_tokens":
 		{
-			return tgHandleTextParentCommonsEditTokens(
-				c, db, selectorParentRewards, textInput,
-				"rewards",
-				"Цена награды должна быть числом",
-				"Награда изменена!",
-			)
+			return tgHandleTextParentRewardsEditTokens(c, db, selectorParentRewards, textInput)
 		}
+		// the input is task number. We need it to delete task
 	case "parent_tasks_delete_name":
 		{
-			return tgHandleParentCommonsDeleteName(
-				c, db, selectorParentTasks,
-				"tasks",
-				"Номер задания должен быть числом",
-				"Нет задания с таким номером",
-				"Задание удалено!",
-			)
+			return tgHandleParentTasksDeleteName(c, db, selectorParentTasks)
 		}
+		// the input is reward number. We need it to delete reward
 	case "parent_rewards_delete_name":
 		{
-			return tgHandleParentCommonsDeleteName(
-				c, db, selectorParentRewards,
-				"rewards",
-				"Номер награды должен быть числом",
-				"Нет награды с таким номером",
-				"Награда удалена!",
-			)
+			return tgHandleParentRewardsDeleteName(c, db, selectorParentRewards)
 		}
+		// the input is task number. We need it to mark task as done
 	case "child_tasks_done":
 		{
-			return tgHandleTextChildTasksDone(c, db, selectorChildTasks)
+			return tgHandleTextChildTasksDone(c, db, selectorChildTasks, selectorParentChecks, b)
 		}
+		// the input is reward number. We need it to claim reward
 	case "child_rewards_claim":
 		{
-			return tgHandleTextChildRewardsClaim(c, db, selectorChildRewards)
+			return tgHandleTextChildRewardsClaim(c, db, selectorChildRewards, b)
 		}
 	}
 	return c.Send("Не понимаю, что ты хочешь от меня 😕")
 }
 
+// register new user, family, show main menu
 func tgHandleStart(
 	c tele.Context,
 	db *sql.DB,
@@ -634,4 +589,166 @@ func tgHandleStart(
 	}
 	// case "child":
 	return c.Send("Начнем?", selectorChild)
+}
+
+// Action on task or reward without text input
+// input strings
+type TGHandleCommonsActionStrings struct {
+	NextHandler string // "parent_tasks_add_name"
+	Question    string // "Как назвать новое задание?"
+}
+
+// prepare bot to handle next next input from this user
+func tgHandleCommonsAction(
+	c tele.Context,
+	db *sql.DB,
+	s TGHandleCommonsActionStrings,
+) error {
+	err := dbUsersSetTextInput(
+		db,
+		c.Sender().ID,
+		DBTextInput{
+			For: sql.NullString{String: s.NextHandler, Valid: true},
+		},
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		return c.Send("Internal error")
+	}
+
+	return c.Send(s.Question)
+}
+
+//
+
+// Action on task or reward by its number
+type TGHandleTextCommonsActionOnNumberFunc func(
+	arg string, db *sql.DB, user DBRecordUser, name string,
+) (int, error)
+
+// input strings
+type TGHandleTextCommonsActionOnNumberStrings struct {
+	Common           string // 'task' or 'reward'
+	ShouldBeNumber   string // "Номер таски/награды должен быть числом"
+	NoWithThisNumber string // "Нет таски/награды с таким номером"
+	ActionDone       string // "Действие выполнено!"
+	Arg              string // "check"
+}
+
+// do some things with task or reward by its number provided by user as input
+func tgHandleTextCommonsActionOnNumber(
+	c tele.Context,
+	db *sql.DB,
+	selector *tele.ReplyMarkup,
+	s TGHandleTextCommonsActionOnNumberStrings,
+	f TGHandleTextCommonsActionOnNumberFunc,
+) (DBRecordUser, string, int, error) {
+	// convert text to number
+	record_n, err := strconv.Atoi(c.Text())
+	if err != nil {
+		return DBRecordUser{}, "", 0, c.Send(s.ShouldBeNumber)
+	}
+
+	// get user by ID
+	user, err := dbUserFind(db, c.Sender().ID)
+	if err != nil {
+		slog.Error(err.Error())
+		return user, "", 0, c.Send("Internal error")
+	}
+
+	// get list of tasks or rewards
+	records, err := dbCommonsList(s.Common, db, user.Family_UID.String)
+	if err != nil {
+		slog.Error(err.Error())
+		return user, "", 0, c.Send("Internal error")
+	}
+
+	// check if task or reward number is in valid range
+	if record_n < 1 || record_n > len(records) {
+		return user, "", 0, c.Send(s.NoWithThisNumber)
+	}
+
+	// do some action with task or reward (delete)
+	record_name := records[record_n-1].Name
+	arg := s.Arg
+	if arg == "" {
+		arg = s.Common
+	}
+	res, err := f(
+		arg, db, user, record_name,
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		return user, record_name, res, err
+	}
+
+	// send message about successful action
+	err = c.Send(s.ActionDone)
+	if err != nil {
+		slog.Error(err.Error())
+		return user, record_name, res, err
+	}
+
+	// show list of tasks or rewards to do other actions
+	if s.Common == "tasks" {
+		return user, record_name, res, tgHandleTasks(c, db, selector)
+	}
+	// case "rewards":
+	return user, record_name, res, tgHandleRewards(c, db, selector)
+}
+
+//
+
+func tgNotifyParents(
+	c tele.Context,
+	db *sql.DB,
+	b *tele.Bot,
+	user DBRecordUser,
+	message string,
+	selector *tele.ReplyMarkup,
+) error {
+	return tgNotifyUsers(c, db, b, user, "parent", message, selector)
+}
+
+func tgNotifyChilds(
+	c tele.Context,
+	db *sql.DB,
+	b *tele.Bot,
+	user DBRecordUser,
+	message string,
+	selector *tele.ReplyMarkup,
+) error {
+	return tgNotifyUsers(c, db, b, user, "child", message, selector)
+}
+
+func tgNotifyUsers(
+	c tele.Context,
+	db *sql.DB,
+	b *tele.Bot,
+	user DBRecordUser,
+	notifyRole string,
+	message string,
+	selector *tele.ReplyMarkup,
+) error {
+	// get users with roles for user's family
+	users, err := dbUsersGet(db, user.Family_UID, notifyRole)
+	if err != nil {
+		slog.Error(err.Error())
+		return c.Send("Internal error")
+	}
+	// send notification to users
+	for _, user_ := range users {
+		if user_ == user.Tg_ID {
+			continue
+		}
+		slog.Info(fmt.Sprintf("Sending notification to %s: %d", notifyRole, user_))
+		recipient := &tele.User{ID: user_}
+
+		_, err = b.Send(recipient, message, selector)
+		if err != nil {
+			slog.Error(err.Error())
+			return c.Send("Internal error")
+		}
+	}
+	return nil
 }

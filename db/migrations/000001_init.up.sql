@@ -5,7 +5,7 @@ CREATE TABLE Families (
     uid VARCHAR(100) NOT NULL, -- Уникальный идентификатор
     created_by BIGINT, -- Временное поле (добавим внешний ключ позже)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_uid UNIQUE (uid) -- Уникальность значения
+    CONSTRAINT unique_family_uid UNIQUE (uid) -- Уникальность значения
 );
 
 -- Таблица пользователей
@@ -51,8 +51,8 @@ CREATE TABLE Rewards (
 -- Таблица жетонов (учёт баланса пользователя)
 CREATE TABLE Tokens (
     id SERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES Users(tg_id) ON DELETE CASCADE,
-    balance INT NOT NULL DEFAULT 0 CHECK (balance >= 0),
+    tg_id BIGINT REFERENCES Users(tg_id) ON DELETE CASCADE,
+    tokens INT NOT NULL DEFAULT 0 CHECK (tokens >= 0),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

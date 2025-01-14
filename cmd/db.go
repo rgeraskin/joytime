@@ -146,29 +146,109 @@ func dbUserRegister(db *sql.DB, user DBRecordUser) error {
 	}
 
 	if user.Role == "child" {
+		slog.Info(fmt.Sprintf("It's child, creating tokens for user %d...", user.Tg_ID))
 		return db.QueryRow(
-			"INSERT INTO tokens(user_id) VALUES($1) RETURNING id",
+			"INSERT INTO tokens(tg_id) VALUES($1) RETURNING id",
 			user.Tg_ID,
 		).Scan(&id)
 	}
 	return nil
 }
 
-func dbTokenGet(db *sql.DB, tgID int64) (int, error) {
+func dbTokensGet(db *sql.DB, tgID int64) (int, error) {
 	slog.Info(fmt.Sprintf("Getting tokens for user %d...", tgID))
 	var tokens int
-	err := db.QueryRow("SELECT balance FROM tokens WHERE user_id = $1", tgID).Scan(&tokens)
+	err := db.QueryRow("SELECT tokens FROM tokens WHERE tg_id = $1", tgID).Scan(&tokens)
 	return tokens, err
 }
 
-func dbTokenAdd(db *sql.DB, tgID int64, tokens int) error {
+func dbTokensAdd(db *sql.DB, tgID int64, tokens int) error {
 	slog.Info(fmt.Sprintf("Adding tokens for user %d...", tgID))
 	var id int
 	return db.QueryRow(
-		"UPDATE tokens SET balance = balance + $1 WHERE user_id = $2 RETURNING id",
+		"UPDATE tokens SET tokens = tokens + $1 WHERE tg_id = $2 RETURNING id",
 		tokens,
 		tgID,
 	).Scan(&id)
+}
+
+func dbTasksStatusChange(status string, db *sql.DB, user DBRecordUser, name string) (int, error) {
+	slog.Info(fmt.Sprintf(
+		"Changing status of task '%s' for family %s to %s...", name, user.Family_UID.String, status,
+	))
+	var id int
+	return 0, db.QueryRow(
+		"UPDATE tasks SET status = $1 WHERE family_uid = $2 AND name = $3 RETURNING id",
+		status,
+		user.Family_UID,
+		name,
+	).Scan(&id)
+}
+
+func dbRewardsClaim(_ string, db *sql.DB, user DBRecordUser, name string) (int, error) {
+	slog.Info(fmt.Sprintf(
+		"Claiming reward '%s' for family %s to %d...", name, user.Family_UID.String, user.Tg_ID,
+	))
+
+	// get price of the reward
+	var price int
+	err := db.QueryRow(
+		"SELECT tokens FROM rewards WHERE family_uid = $1 AND name = $2",
+		user.Family_UID,
+		name,
+	).Scan(&price)
+	if err != nil {
+		slog.Error(err.Error())
+		return 0, err
+	}
+	slog.Info(fmt.Sprintf("Price: %d", price))
+
+	// get user tokens
+	var tokens int
+	err = db.QueryRow(
+		"SELECT tokens FROM tokens WHERE tg_id = $1",
+		user.Tg_ID,
+	).Scan(&tokens)
+	if err != nil {
+		slog.Error(err.Error())
+		return price, err
+	}
+	slog.Info(fmt.Sprintf("User tokens: %d", tokens))
+
+	// check if user has enough tokens
+	if tokens < price {
+		slog.Info(fmt.Sprintf("Not enough tokens for user %d", user.Tg_ID))
+		return price, fmt.Errorf("not enough tokens")
+	}
+
+	// update user tokens
+	var id int
+	return price, db.QueryRow(
+		"UPDATE tokens SET tokens = $1 WHERE tg_id = $2 RETURNING id",
+		tokens-price,
+		user.Tg_ID,
+	).Scan(&id)
+}
+
+func dbUsersGet(db *sql.DB, familyUID sql.NullString, role string) ([]int64, error) {
+	slog.Info(fmt.Sprintf("Getting parents for family %s...", familyUID.String))
+	var users []int64
+	query := "SELECT tg_id FROM users WHERE family_uid = $1 AND role = $2"
+	rows, err := db.Query(query, familyUID, role)
+	if err != nil {
+		return users, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tgID int64
+		if err := rows.Scan(&tgID); err != nil {
+			return users, err
+		}
+		users = append(users, tgID)
+	}
+
+	return users, nil
 }
 
 func dbUserFind(db *sql.DB, tgID int64) (DBRecordUser, error) {
@@ -186,8 +266,8 @@ func dbUserFind(db *sql.DB, tgID int64) (DBRecordUser, error) {
 	return record, nil
 }
 
-func dbCommonsAdd(common string, db *sql.DB, familyID string, name string, tokens int) error {
-	slog.Info(fmt.Sprintf("Adding %s '%s' for family %s...", common, name, familyID))
+func dbCommonsAdd(common string, db *sql.DB, familyUID string, name string, tokens int) error {
+	slog.Info(fmt.Sprintf("Adding %s '%s' for family %s...", common, name, familyUID))
 	var id int
 	query := fmt.Sprintf(
 		"INSERT INTO %s(family_uid, name, tokens) VALUES($1, $2, $3) RETURNING id",
@@ -195,28 +275,30 @@ func dbCommonsAdd(common string, db *sql.DB, familyID string, name string, token
 	)
 	return db.QueryRow(
 		query,
-		familyID,
+		familyUID,
 		name,
 		tokens,
 	).Scan(&id)
 }
 
-func dbCommonsDelete(common string, db *sql.DB, familyID string, name string) error {
-	slog.Info(fmt.Sprintf("Removing %s '%s' for family %s...", common, name, familyID))
+func dbCommonsDelete(common string, db *sql.DB, user DBRecordUser, name string) (int, error) {
+	slog.Info(
+		fmt.Sprintf("Removing %s '%s' for family %s...", common, name, user.Family_UID.String),
+	)
 	var id int
 	query := fmt.Sprintf(
 		"DELETE FROM %s WHERE family_uid = $1 AND name = $2 RETURNING id",
 		common,
 	)
-	return db.QueryRow(
+	return 0, db.QueryRow(
 		query,
-		familyID,
+		user.Family_UID,
 		name,
 	).Scan(&id)
 }
 
-func dbCommonsEdit(common string, db *sql.DB, familyID string, name string, tokens int) error {
-	slog.Info(fmt.Sprintf("Editing %s '%s' for family %s...", common, name, familyID))
+func dbCommonsEdit(common string, db *sql.DB, familyUID string, name string, tokens int) error {
+	slog.Info(fmt.Sprintf("Editing %s '%s' for family %s...", common, name, familyUID))
 	var id int
 	query := fmt.Sprintf(
 		"UPDATE %s SET tokens = $1 WHERE family_uid = $2 AND name = $3 RETURNING id",
@@ -225,19 +307,19 @@ func dbCommonsEdit(common string, db *sql.DB, familyID string, name string, toke
 	return db.QueryRow(
 		query,
 		tokens,
-		familyID,
+		familyUID,
 		name,
 	).Scan(&id)
 }
 
-func dbCommonsList(common string, db *sql.DB, familyID string) ([]DBRecordCommon, error) {
-	slog.Info(fmt.Sprintf("Getting %s list for family %s...", common, familyID))
+func dbCommonsList(common string, db *sql.DB, familyUID string) ([]DBRecordCommon, error) {
+	slog.Info(fmt.Sprintf("Getting %s list for family %s...", common, familyUID))
 	var records []DBRecordCommon
 	query := fmt.Sprintf(
 		"SELECT name, tokens FROM %s WHERE family_uid = $1",
 		common,
 	)
-	rows, err := db.Query(query, familyID)
+	rows, err := db.Query(query, familyUID)
 	if err != nil {
 		return records, err
 	}
@@ -258,8 +340,13 @@ func dbCommonsList(common string, db *sql.DB, familyID string) ([]DBRecordCommon
 	return records, nil
 }
 
-func dbCommonsGet(common string, db *sql.DB, familyID string, name string) (DBRecordCommon, error) {
-	slog.Info(fmt.Sprintf("Getting %s '%s' for family %s...", common, name, familyID))
+func dbCommonsGet(
+	common string,
+	db *sql.DB,
+	familyUID string,
+	name string,
+) (DBRecordCommon, error) {
+	slog.Info(fmt.Sprintf("Getting %s '%s' for family %s...", common, name, familyUID))
 	var record DBRecordCommon
 	query := fmt.Sprintf(
 		"SELECT name, tokens FROM %s WHERE family_uid = $1 AND name = $2",
@@ -267,40 +354,40 @@ func dbCommonsGet(common string, db *sql.DB, familyID string, name string) (DBRe
 	)
 	err := db.QueryRow(
 		query,
-		familyID,
+		familyUID,
 		name,
 	).Scan(&record.Name, &record.Tokens)
 	return record, err
 }
 
-// func dbTasksAdd(db *sql.DB, familyID string, name string, tokens int) error {
-// 	return dbCommonsAdd("tasks", db, familyID, name, tokens)
+// func dbTasksAdd(db *sql.DB, familyUID string, name string, tokens int) error {
+// 	return dbCommonsAdd("tasks", db, familyUID, name, tokens)
 // }
-// func dbTasksDelete(db *sql.DB, familyID string, name string) error {
-// 	return dbCommonsDelete("tasks", db, familyID, name)
+// func dbTasksDelete(db *sql.DB, familyUID string, name string) error {
+// 	return dbCommonsDelete("tasks", db, familyUID, name)
 // }
-// func dbTasksEdit(db *sql.DB, familyID string, name string, tokens int) error {
-// 	return dbCommonsEdit("tasks", db, familyID, name, tokens)
+// func dbTasksEdit(db *sql.DB, familyUID string, name string, tokens int) error {
+// 	return dbCommonsEdit("tasks", db, familyUID, name, tokens)
 // }
-// func dbTasksList(db *sql.DB, familyID string) ([]DBRecordCommon, error) {
-// 	return dbCommonsList("tasks", db, familyID)
+// func dbTasksList(db *sql.DB, familyUID string) ([]DBRecordCommon, error) {
+// 	return dbCommonsList("tasks", db, familyUID)
 // }
-// func dbTasksGet(db *sql.DB, familyID string, name string) (DBRecordCommon, error) {
-// 	return dbCommonsGet("tasks", db, familyID, name)
+// func dbTasksGet(db *sql.DB, familyUID string, name string) (DBRecordCommon, error) {
+// 	return dbCommonsGet("tasks", db, familyUID, name)
 // }
 
-// func dbRewardsAdd(db *sql.DB, familyID string, name string, tokens int) error {
-// 	return dbCommonsAdd("rewards", db, familyID, name, tokens)
+// func dbRewardsAdd(db *sql.DB, familyUID string, name string, tokens int) error {
+// 	return dbCommonsAdd("rewards", db, familyUID, name, tokens)
 // }
-// func dbRewardsDelete(db *sql.DB, familyID string, name string) error {
-// 	return dbCommonsDelete("rewards", db, familyID, name)
+// func dbRewardsDelete(db *sql.DB, familyUID string, name string) error {
+// 	return dbCommonsDelete("rewards", db, familyUID, name)
 // }
-// func dbRewardsEdit(db *sql.DB, familyID string, name string, tokens int) error {
-// 	return dbCommonsEdit("rewards", db, familyID, name, tokens)
+// func dbRewardsEdit(db *sql.DB, familyUID string, name string, tokens int) error {
+// 	return dbCommonsEdit("rewards", db, familyUID, name, tokens)
 // }
-// func dbRewardsList(db *sql.DB, familyID string) ([]DBRecordCommon, error) {
-// 	return dbCommonsList("rewards", db, familyID)
+// func dbRewardsList(db *sql.DB, familyUID string) ([]DBRecordCommon, error) {
+// 	return dbCommonsList("rewards", db, familyUID)
 // }
-// func dbRewardsGet(db *sql.DB, familyID string, name string) (DBRecordCommon, error) {
-// 	return dbCommonsGet("rewards", db, familyID, name)
+// func dbRewardsGet(db *sql.DB, familyUID string, name string) (DBRecordCommon, error) {
+// 	return dbCommonsGet("rewards", db, familyUID, name)
 // }
