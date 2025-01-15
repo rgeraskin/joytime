@@ -1,12 +1,10 @@
 package main
 
-// 2DO
-// 1. ERR pq: duplicate key value violates unique constraint "unique_tg_id"
-// 1. ERR pq: duplicate key value violates unique constraint "unique_family_id"
-
 import (
 	"log/slog"
 	"os"
+
+	"github.com/NicoNex/echotron/v3"
 
 	"github.com/lmittmann/tint"
 
@@ -14,7 +12,12 @@ import (
 )
 
 func main() {
-	slog.SetDefault(slog.New(tint.NewHandler(os.Stderr, nil)))
+
+	slog.SetDefault(slog.New(
+		tint.NewHandler(os.Stderr, &tint.Options{
+			Level: slog.LevelDebug,
+		}),
+	))
 
 	db, err := dbOpen()
 	if err != nil {
@@ -23,11 +26,8 @@ func main() {
 	}
 	defer db.Close()
 
-	b, err := tgBot(db)
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-
-	b.Start()
+	dsp := echotron.NewDispatcher(os.Getenv("TOKEN"), func(chatID int64) echotron.Bot {
+		return newBot(chatID, db) // Pass the database instance
+	})
+	slog.Info(dsp.Poll().Error())
 }

@@ -105,27 +105,29 @@ func dbFamilyJoin(db *sql.DB, user DBRecordUser) error {
 	).Scan(&id)
 }
 
-func dbFamilyCreate(db *sql.DB, userID int64) error {
+func dbFamilyCreate(db *sql.DB, userID int64) (sql.NullString, error) {
 	var id int
 
 	// Generate a unique family UID
-	familyUID := make([]byte, dbFamilyUIDLength)
-	for i := range familyUID {
-		familyUID[i] = dbFamilyUIDCharset[rand.Intn(len(dbFamilyUIDCharset))]
+	familyUID_byte := make([]byte, dbFamilyUIDLength)
+	for i := range familyUID_byte {
+		familyUID_byte[i] = dbFamilyUIDCharset[rand.Intn(len(dbFamilyUIDCharset))]
 	}
+	familyUID := sql.NullString{String: string(familyUID_byte), Valid: true}
 
-	slog.Info(fmt.Sprintf("Creating a new family with uid %s...", familyUID))
+	slog.Info(fmt.Sprintf("Creating a new family with uid %s...", familyUID.String))
 	err := db.QueryRow(
 		"INSERT INTO families(uid, created_by) VALUES($1, $2) RETURNING id",
 		familyUID,
 		userID,
 	).Scan(&id)
 	if err != nil {
-		return err
+		return familyUID, err
 	}
 
-	slog.Info(fmt.Sprintf("Updating user %d with family_uid %s...", userID, familyUID))
-	return db.QueryRow(
+	slog.Info(fmt.Sprintf("Updating user %d with family_uid %s...", userID, familyUID.String))
+
+	return familyUID, db.QueryRow(
 		"UPDATE users SET family_uid = $1 WHERE tg_id = $2 RETURNING id",
 		familyUID,
 		userID,
@@ -266,7 +268,13 @@ func dbUserFind(db *sql.DB, tgID int64) (DBRecordUser, error) {
 	return record, nil
 }
 
-func dbCommonsAdd(common string, db *sql.DB, familyUID string, name string, tokens int) error {
+func dbCommonsAdd(
+	common string,
+	db *sql.DB,
+	familyUID sql.NullString,
+	name string,
+	tokens int,
+) error {
 	slog.Info(fmt.Sprintf("Adding %s '%s' for family %s...", common, name, familyUID))
 	var id int
 	query := fmt.Sprintf(
@@ -312,7 +320,7 @@ func dbCommonsEdit(common string, db *sql.DB, familyUID string, name string, tok
 	).Scan(&id)
 }
 
-func dbCommonsList(common string, db *sql.DB, familyUID string) ([]DBRecordCommon, error) {
+func dbCommonsList(common string, db *sql.DB, familyUID sql.NullString) ([]DBRecordCommon, error) {
 	slog.Info(fmt.Sprintf("Getting %s list for family %s...", common, familyUID))
 	var records []DBRecordCommon
 	query := fmt.Sprintf(
