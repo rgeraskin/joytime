@@ -1,0 +1,5 @@
+[tasks."db.up"]
+run = "docker run -d -p 55667:5432 -e POSTGRES_DB=joytime -e POSTGRES_PASSWORD=password --name postgres postgres"
+
+[tasks."db.down"]
+run = "docker rm -f postgres"
