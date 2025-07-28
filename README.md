@@ -132,8 +132,11 @@ mise run test-coverage
 ### Ручное тестирование API
 
 ```bash
-# Тестирование через curl
-mise run test-api
+# Интеграционные тесты API
+mise run test-integration
+
+# Тесты операций с токенами
+mise run test-tokens
 ```
 
 ### Примеры API запросов

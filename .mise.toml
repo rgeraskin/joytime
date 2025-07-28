@@ -52,9 +52,19 @@ run = [
 description = "Запустить все тесты"
 run = ["echo '🧪 Запуск тестов...'", "go test -v ./..."]
 
-[tasks."test-api"]
-description = "Запустить тесты API через curl"
-run = ["echo '🌐 Тестирование API...'", "chmod +x test_api.sh", "./test_api.sh"]
+[tasks."test-integration"]
+description = "Запустить интеграционные тесты API"
+run = [
+    "echo '🌐 Запуск интеграционных тестов...'",
+    "go test -v ./internal/api -run TestFullAPIWorkflow",
+]
+
+[tasks."test-tokens"]
+description = "Запустить тесты операций с токенами"
+run = [
+    "echo '💰 Тестирование операций с токенами...'",
+    "go test -v ./internal/api -run TestTokenOperations",
+]
 
 [tasks."test-unit"]
 description = "Запустить только unit тесты"

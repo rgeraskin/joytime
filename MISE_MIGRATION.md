@@ -4,21 +4,21 @@
 
 ## 📋 Таблица соответствия команд
 
-| Makefile             | mise                 | Описание                   |
-|----------------------|----------------------|----------------------------|
-| `make help`          | `mise tasks`         | Показать доступные команды |
-| `make build`         | `mise run build`     | Собрать приложение         |
-| `make run`           | `mise run run`       | Запустить приложение       |
-| `make run-with-fill` | `mise run run-fill`  | Запустить с заполнением БД |
-| `make test`          | `mise run test`      | Запустить все тесты        |
-| `make test-api`      | `mise run test-api`  | Тестировать API            |
-| `make fill`          | `mise run fill`      | Заполнить БД данными       |
-| `make dev-deps`      | `mise run dev-deps`  | Установить зависимости     |
-| `make clean`         | `mise run clean`     | Очистить артефакты         |
-| `make docker-up`     | `mise run db.up`     | Запустить PostgreSQL       |
-| `make docker-down`   | `mise run db.down`   | Остановить PostgreSQL      |
-| `make docker-logs`   | `mise run db.logs`   | Логи PostgreSQL            |
-| `make setup-env`     | `mise run setup-env` | Создать .env файл          |
+| Makefile             | mise                        | Описание                   |
+|----------------------|-----------------------------|----------------------------|
+| `make help`          | `mise tasks`                | Показать доступные команды |
+| `make build`         | `mise run build`            | Собрать приложение         |
+| `make run`           | `mise run run`              | Запустить приложение       |
+| `make run-with-fill` | `mise run run-fill`         | Запустить с заполнением БД |
+| `make test`          | `mise run test`             | Запустить все тесты        |
+| `make test-api`      | `mise run test-integration` | Интеграционные тесты API   |
+| `make fill`          | `mise run fill`             | Заполнить БД данными       |
+| `make dev-deps`      | `mise run dev-deps`         | Установить зависимости     |
+| `make clean`         | `mise run clean`            | Очистить артефакты         |
+| `make docker-up`     | `mise run db.up`            | Запустить PostgreSQL       |
+| `make docker-down`   | `mise run db.down`          | Остановить PostgreSQL      |
+| `make docker-logs`   | `mise run db.logs`          | Логи PostgreSQL            |
+| `make setup-env`     | `mise run setup-env`        | Создать .env файл          |
 
 ## ✨ Новые возможности mise
 
@@ -49,6 +49,12 @@ mise run test-unit
 
 # Тесты с покрытием
 mise run test-coverage
+
+# Интеграционные тесты API
+mise run test-integration
+
+# Тесты операций с токенами
+mise run test-tokens
 
 # Форматирование кода
 mise run fmt
