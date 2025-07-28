@@ -334,12 +334,12 @@ func TestFullAPIWorkflow(t *testing.T) {
 		// 16. Update user (change platform)
 		t.Log("16. 📝 Updating user (changing platform)...")
 		updateData := map[string]interface{}{
-			"platform":     "web",
-			"input_state":  "waiting_for_task_name",
-			"user_id":      "user_child_456",
-			"name":         "Test Child",
-			"role":         "child",
-			"family_uid":   familyUID,
+			"platform":    "web",
+			"input_state": "waiting_for_task_name",
+			"user_id":     "user_child_456",
+			"name":        "Test Child",
+			"role":        "child",
+			"family_uid":  familyUID,
 		}
 		updateJSON, _ := json.Marshal(updateData)
 		req = httptest.NewRequest(http.MethodPut, "/users/user_child_456", bytes.NewBuffer(updateJSON))

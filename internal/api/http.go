@@ -63,7 +63,10 @@ func handleFamily(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Family not found", http.StatusNotFound)
 			return
 		}
-		json.NewEncoder(w).Encode(family)
+		if err := json.NewEncoder(w).Encode(family); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPut:
 		// decode family
@@ -92,7 +95,10 @@ func handleFamily(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(family)
+		if err := json.NewEncoder(w).Encode(family); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodDelete:
 		// check if family exists
@@ -125,7 +131,10 @@ func handleFamilies(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(families)
+		if err := json.NewEncoder(w).Encode(families); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPost:
 		// decode family
@@ -165,7 +174,10 @@ func handleFamilies(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(family)
+		if err := json.NewEncoder(w).Encode(family); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -182,7 +194,10 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(users)
+		if err := json.NewEncoder(w).Encode(users); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPost:
 		// decode user
@@ -250,7 +265,10 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(user)
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -269,7 +287,10 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
-		json.NewEncoder(w).Encode(user)
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPut:
 		// Decode user
@@ -308,7 +329,10 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(user)
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodDelete:
 		// Check if user exists
@@ -345,7 +369,10 @@ func handleTokens(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(tokens)
+		if err := json.NewEncoder(w).Encode(tokens); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -368,7 +395,10 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		json.NewEncoder(w).Encode(tokens)
+		if err := json.NewEncoder(w).Encode(tokens); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPut:
 		// Update user tokens
@@ -402,7 +432,10 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		json.NewEncoder(w).Encode(existingTokens)
+		if err := json.NewEncoder(w).Encode(existingTokens); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPost:
 		// Add tokens to user (для начисления/списания токенов)
@@ -477,7 +510,10 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 			// Не останавливаем операцию из-за ошибки в истории
 		}
 
-		json.NewEncoder(w).Encode(tokens)
+		if err := json.NewEncoder(w).Encode(tokens); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -494,7 +530,10 @@ func handleTokenHistory(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(history)
+		if err := json.NewEncoder(w).Encode(history); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -538,7 +577,10 @@ func handleUserTokenHistory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		json.NewEncoder(w).Encode(history)
+		if err := json.NewEncoder(w).Encode(history); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -572,26 +614,34 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 	case http.MethodGet:
 		// List all entities
 		logger.Debug("Listing all entities")
-		if entityType == "tasks" {
+		switch entityType {
+		case "tasks":
 			var entities []postgres.Tasks
 			if err := db.Find(&entities).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			json.NewEncoder(w).Encode(entities)
-		} else if entityType == "rewards" {
+			if err := json.NewEncoder(w).Encode(entities); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		case "rewards":
 			var entities []postgres.Rewards
 			if err := db.Find(&entities).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			json.NewEncoder(w).Encode(entities)
+			if err := json.NewEncoder(w).Encode(entities); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 	case http.MethodPost:
 		// Create new entity
 		logger.Debug("Creating new entity")
-		if entityType == "tasks" {
+		switch entityType {
+		case "tasks":
 			var entity postgres.Tasks
 			if err := json.NewDecoder(r.Body).Decode(&entity); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -625,8 +675,11 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 			}
 			logger.Debug("Created task", "task", entity)
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(entity)
-		} else if entityType == "rewards" {
+			if err := json.NewEncoder(w).Encode(entity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		case "rewards":
 			var entity postgres.Rewards
 			if err := json.NewDecoder(r.Body).Decode(&entity); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -660,7 +713,10 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 			}
 			logger.Debug("Created reward", "reward", entity)
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(entity)
+			if err := json.NewEncoder(w).Encode(entity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 	case http.MethodPut:
@@ -703,7 +759,8 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 		// check if entity exists
 		logger.Debug("Checking if entity exists")
 		where := db.Where("family_uid = ?", entity.FamilyUID).Where("name = ?", entity.Name)
-		if entityType == "tasks" {
+		switch entityType {
+		case "tasks":
 			var existingEntity postgres.Tasks
 			if err := where.First(&existingEntity).Error; err != nil {
 				if err == gorm.ErrRecordNotFound {
@@ -723,9 +780,12 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			json.NewEncoder(w).Encode(existingEntity)
+			if err := json.NewEncoder(w).Encode(existingEntity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		} else if entityType == "rewards" {
+		case "rewards":
 			var existingEntity postgres.Rewards
 			if err := where.First(&existingEntity).Error; err != nil {
 				if err == gorm.ErrRecordNotFound {
@@ -745,7 +805,10 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			json.NewEncoder(w).Encode(existingEntity)
+			if err := json.NewEncoder(w).Encode(existingEntity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 	default:
@@ -773,14 +836,20 @@ func handleEntity(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			json.NewEncoder(w).Encode(entities)
+			if err := json.NewEncoder(w).Encode(entities); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		} else if strings.Contains(r.URL.Path, "rewards") {
 			var entities []postgres.Rewards
 			if err := db.Where("family_uid = ?", family.UID).Find(&entities).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			json.NewEncoder(w).Encode(entities)
+			if err := json.NewEncoder(w).Encode(entities); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 	default:

@@ -29,14 +29,6 @@ echo '🚀 Starting application...'
 $BUILD_DIR/$APP_NAME
 """
 
-[tasks."run-fill"]
-description = "Start application with DB fill"
-depends = ["build"]
-run = """
-echo '🚀 Starting application with DB fill...'
-$BUILD_DIR/$APP_NAME -fill
-"""
-
 # === Testing ===
 [tasks.test]
 description = "Run all tests"
@@ -77,6 +69,14 @@ echo '🛑 Stopping PostgreSQL...'
 docker compose down postgres
 """
 
+[tasks."db.fill"]
+description = "Start application with DB fill"
+depends = ["build", "db.up"]
+run = """
+echo '🚀 Starting application to fill DB...'
+$BUILD_DIR/$APP_NAME -fill
+"""
+
 [tasks."db.logs"]
 description = "Show PostgreSQL logs"
 run = "docker compose logs -f postgres"
@@ -85,13 +85,15 @@ run = "docker compose logs -f postgres"
 description = "Connect to PostgreSQL shell"
 run = "docker compose exec -it postgres psql -U ${PGUSER} -d ${PGDATABASE}"
 
+[tasks."db.shell-pipe"]
+description = "Connect to PostgreSQL shell and pipe to it"
+run = "docker compose exec -T postgres psql -U ${PGUSER} -d ${PGDATABASE}"
+
 [tasks."db.reset"]
 description = "Reset DB and fill with test data"
-depends = ["db.down", "db.up"]
 run = """
-echo '⏳ Waiting for PostgreSQL to start...'
-sleep 3
-mise run fill
+mise run db.down
+mise run db.fill
 """
 
 # === Development ===
@@ -154,11 +156,9 @@ echo "⚠️  Don't forget to update settings in .env file!"
 # === Complex Tasks ===
 [tasks.dev]
 description = "Start full development environment"
-depends = ["dev-deps", "db.up"]
+depends = ["dev-deps", "db.fill"]
 run = """
 echo '🚀 Starting development environment...'
-sleep 2
-mise run run-fill
 """
 
 [tasks.ci]
@@ -176,10 +176,7 @@ description = "Full project reset"
 run = """
 echo '🔄 Full project reset...'
 mise run clean
-mise run db.down
-mise run dev-deps
-mise run db.up
-sleep 3
+mise run db.reset
 mise run dev
 """
 
@@ -188,5 +185,6 @@ mise run dev
 description = "Generate API documentation"
 run = """
 echo '📚 Generating documentation...'
-go doc -all > docs/api.txt && echo '✅ Documentation updated'
+mkdir -p docs
+cd cmd && go doc -all > ../docs/api.txt && echo '✅ Documentation updated'
 """

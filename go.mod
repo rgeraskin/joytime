@@ -3,7 +3,6 @@ module github.com/rgeraskin/joytime
 go 1.23.2
 
 require (
-	github.com/NicoNex/echotron/v3 v3.43.0
 	github.com/charmbracelet/log v0.4.0
 	github.com/stretchr/testify v1.9.0
 	gorm.io/driver/postgres v1.5.11
@@ -35,6 +34,5 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

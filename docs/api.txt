@@ -1,0 +1,11 @@
+
+
+TYPES
+
+type Config struct {
+	Token string
+	DB    postgres.Config
+}
+
+func NewConfig() (*Config, error)
+

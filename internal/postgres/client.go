@@ -9,11 +9,6 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-const (
-	dbFamilyUIDCharset = "abcdefghjkmnpqrstuvwxyz23456789"
-	dbFamilyUIDLength  = 6
-)
-
 type Config struct {
 	User     string
 	Password string
