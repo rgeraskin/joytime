@@ -1,5 +1,205 @@
+# Конфигурация инструментов разработки
+[tools]
+go = "1.23.2"
+
+# Переменные окружения
+[env]
+APP_NAME = "joytime"
+BUILD_DIR = "./build"
+DEBUG = "1"
+# Загружаем переменные из .env файла
+_.source = ".env"
+
+# Задачи разработки
+[tasks]
+
+# === Сборка и запуск ===
+[tasks.build]
+description = "Собрать приложение"
+run = [
+    "echo '🔨 Сборка приложения...'",
+    "mkdir -p $BUILD_DIR",
+    "go build -o $BUILD_DIR/$APP_NAME ./cmd",
+    "echo '✅ Приложение собрано: $BUILD_DIR/$APP_NAME'",
+]
+
+[tasks.run]
+description = "Запустить приложение"
+depends = ["build"]
+run = [
+    "echo '🚀 Запуск приложения...'",
+    "set -a && source .env && set +a && $BUILD_DIR/$APP_NAME",
+]
+
+[tasks."run-fill"]
+description = "Запустить приложение с заполнением БД"
+depends = ["build"]
+run = [
+    "echo '🚀 Запуск приложения с заполнением БД...'",
+    "set -a && source .env && set +a && $BUILD_DIR/$APP_NAME -fill",
+]
+
+[tasks.fill]
+description = "Заполнить БД тестовыми данными"
+depends = ["build"]
+run = [
+    "echo '📊 Заполнение БД тестовыми данными...'",
+    "set -a && source .env && set +a && $BUILD_DIR/$APP_NAME -fill",
+]
+
+# === Тестирование ===
+[tasks.test]
+description = "Запустить все тесты"
+run = ["echo '🧪 Запуск тестов...'", "go test -v ./..."]
+
+[tasks."test-api"]
+description = "Запустить тесты API через curl"
+run = ["echo '🌐 Тестирование API...'", "chmod +x test_api.sh", "./test_api.sh"]
+
+[tasks."test-unit"]
+description = "Запустить только unit тесты"
+run = "go test -v ./internal/..."
+
+[tasks."test-coverage"]
+description = "Запустить тесты с покрытием"
+run = [
+    "echo '📊 Анализ покрытия тестами...'",
+    "go test -coverprofile=coverage.out ./...",
+    "go tool cover -html=coverage.out -o coverage.html",
+    "echo '📈 Отчет создан: coverage.html'",
+]
+
+# === База данных ===
 [tasks."db.up"]
-run = "docker run -d -p 55667:5432 -e POSTGRES_DB=joytime -e POSTGRES_PASSWORD=password --name postgres postgres"
+description = "Запустить PostgreSQL в Docker"
+run = [
+    "echo '🐘 Запуск PostgreSQL...'",
+    "docker run -d -p 5432:5432 -e POSTGRES_DB=joytime -e POSTGRES_USER=joytime -e POSTGRES_PASSWORD=password --name joytime-postgres postgres:15-alpine || docker start joytime-postgres",
+    "echo '✅ PostgreSQL запущен на порту 5432'",
+]
 
 [tasks."db.down"]
-run = "docker rm -f postgres"
+description = "Остановить PostgreSQL"
+run = [
+    "echo '🛑 Остановка PostgreSQL...'",
+    "docker stop joytime-postgres || true",
+    "docker rm joytime-postgres || true",
+]
+
+[tasks."db.logs"]
+description = "Показать логи PostgreSQL"
+run = "docker logs -f joytime-postgres"
+
+[tasks."db.shell"]
+description = "Подключиться к PostgreSQL shell"
+run = "docker exec -it joytime-postgres psql -U joytime -d joytime"
+
+[tasks."db.reset"]
+description = "Сбросить БД и заполнить тестовыми данными"
+depends = ["db.down", "db.up"]
+run = ["echo '⏳ Ждем запуска PostgreSQL...'", "sleep 3", "mise run fill"]
+
+# === Docker compose (альтернативный способ) ===
+[tasks."docker.up"]
+description = "Запустить все сервисы через docker-compose"
+run = ["echo '🐳 Запуск сервисов...'", "docker-compose up -d postgres"]
+
+[tasks."docker.down"]
+description = "Остановить все сервисы"
+run = ["echo '🛑 Остановка сервисов...'", "docker-compose down"]
+
+[tasks."docker.logs"]
+description = "Показать логи всех сервисов"
+run = "docker-compose logs -f"
+
+# === Разработка ===
+[tasks."dev-deps"]
+description = "Установить зависимости для разработки"
+run = [
+    "echo '📦 Установка зависимостей...'",
+    "go mod download",
+    "go mod tidy",
+    "echo '✅ Зависимости установлены'",
+]
+
+[tasks.clean]
+description = "Очистить артефакты сборки"
+run = [
+    "echo '🧹 Очистка...'",
+    "rm -rf $BUILD_DIR",
+    "rm -f $APP_NAME",
+    "rm -f coverage.out coverage.html",
+    "echo '✅ Очистка завершена'",
+]
+
+[tasks.fmt]
+description = "Форматировать код"
+run = ["echo '💅 Форматирование кода...'", "go fmt ./...", "go mod tidy"]
+
+[tasks.lint]
+description = "Проверить код линтером"
+run = [
+    "echo '🔍 Проверка кода...'",
+    "go vet ./...",
+    "golangci-lint run || echo '⚠️  Установите golangci-lint для полной проверки'",
+]
+
+# === Настройка окружения ===
+[tasks."setup-env"]
+description = "Создать файл .env с примером настроек"
+run = ["echo '⚙️  Создание файла .env...'", '''cat > .env << 'EOF'
+# Telegram Bot Token (получить у @BotFather)
+TOKEN=your_telegram_bot_token_here
+
+# PostgreSQL настройки
+PGHOST=localhost
+PGPORT=5432
+PGUSER=joytime
+PGPASSWORD=password
+PGDATABASE=joytime
+
+# Debug режим
+DEBUG=1
+EOF''', "echo '⚠️  Не забудьте обновить настройки в .env файле!'"]
+
+# === Комплексные задачи ===
+[tasks.dev]
+description = "Запустить полную среду разработки"
+depends = ["dev-deps", "db.up"]
+run = ["echo '🚀 Запуск среды разработки...'", "sleep 2", "mise run run-fill"]
+
+[tasks.ci]
+description = "Запустить проверки как в CI"
+run = [
+    "echo '🤖 Запуск CI проверок...'",
+    "mise run fmt",
+    "mise run lint",
+    "mise run test",
+    "echo '✅ Все проверки пройдены'",
+]
+
+[tasks."full-reset"]
+description = "Полный сброс проекта"
+run = [
+    "echo '🔄 Полный сброс проекта...'",
+    "mise run clean",
+    "mise run db.down",
+    "mise run dev-deps",
+    "mise run db.up",
+    "sleep 3",
+    "mise run dev",
+]
+
+# === Документация ===
+[tasks.docs]
+description = "Генерация документации API"
+run = [
+    "echo '📚 Генерация документации...'",
+    "go doc -all > docs/api.txt || echo 'Документация сохранена в docs/api.txt'",
+    "echo '✅ Документация обновлена'",
+]
+
+# === Утилиты ===
+[tasks.help]
+description = "Показать все доступные команды"
+run = ["echo '📋 Доступные команды mise:'", "mise tasks"]

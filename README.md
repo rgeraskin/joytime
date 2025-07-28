@@ -29,9 +29,10 @@ JoyTime - это система управления семейными зада
 
 ### Предварительные требования
 
-- Go 1.23+
-- PostgreSQL (или Docker)
-- Make (опционально)
+- [mise](https://mise.jdx.dev/) - универсальный инструмент разработки
+- Docker (для PostgreSQL)
+
+> mise автоматически установит Go 1.23+
 
 ### 1. Клонирование репозитория
 
@@ -44,10 +45,10 @@ cd joytime
 
 ```bash
 # Создать файл .env с настройками
-make setup-env
+mise run setup-env
 
-# Или создать вручную
-cp .env.example .env
+# Проверить, что все инструменты установлены
+mise install
 ```
 
 Обновите настройки в `.env`:
@@ -73,10 +74,13 @@ DEBUG=1
 
 ```bash
 # Запустить PostgreSQL в Docker
-make docker-up
+mise run db.up
 
 # Проверить статус
 docker ps
+
+# Альтернативно через docker-compose
+mise run docker.up
 ```
 
 #### Вариант B: Локальная установка PostgreSQL
@@ -93,16 +97,19 @@ GRANT ALL PRIVILEGES ON DATABASE joytime TO joytime;
 
 ```bash
 # Установить зависимости
-make dev-deps
+mise run dev-deps
 
 # Собрать приложение
-make build
+mise run build
 
 # Заполнить БД тестовыми данными
-make fill
+mise run fill
 
 # Запустить сервер
-make run
+mise run run
+
+# Или запустить всю среду разработки одной командой
+mise run dev
 ```
 
 Сервер будет доступен по адресу: http://localhost:8080
@@ -113,17 +120,20 @@ make run
 
 ```bash
 # Запустить все тесты
-make test
+mise run test
 
-# Только тесты API
-go test ./internal/api -v
+# Только unit тесты
+mise run test-unit
+
+# Тесты с покрытием кода
+mise run test-coverage
 ```
 
 ### Ручное тестирование API
 
 ```bash
 # Тестирование через curl
-make test-api
+mise run test-api
 ```
 
 ### Примеры API запросов
@@ -331,36 +341,57 @@ docker-compose.yml # Docker окружение
 
 ```bash
 # Показать все доступные команды
-make help
+mise tasks
 
 # Очистить артефакты сборки
-make clean
+mise run clean
 
-# Посмотреть логи Docker
-make docker-logs
+# Посмотреть логи PostgreSQL
+mise run db.logs
 
-# Остановить Docker
-make docker-down
+# Остановить PostgreSQL
+mise run db.down
+
+# Подключиться к БД
+mise run db.shell
+
+# Полный сброс проекта
+mise run full-reset
+
+# Форматирование кода
+mise run fmt
+
+# Проверка линтером
+mise run lint
+
+# CI проверки
+mise run ci
 ```
 
 ## 🐛 Отладка
 
 ### Логи приложения
 
-Приложение выводит подробные логи в консоль. Для включения debug режима:
+Приложение выводит подробные логи в консоль. Debug режим уже настроен в mise:
 
 ```bash
-export DEBUG=1
-make run
+# Запуск с логами
+mise run run
+
+# Посмотреть логи PostgreSQL
+mise run db.logs
 ```
 
 ### Подключение к базе данных
 
 ```bash
-# Через Docker
+# Быстрое подключение через mise
+mise run db.shell
+
+# Напрямую через Docker
 docker exec -it joytime-postgres psql -U joytime -d joytime
 
-# Локально
+# Локально (если PostgreSQL установлен)
 psql -h localhost -U joytime -d joytime
 ```
 

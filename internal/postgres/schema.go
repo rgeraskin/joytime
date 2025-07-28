@@ -14,12 +14,12 @@ type Families struct {
 
 type Users struct {
 	gorm.Model
-	UserID       string         `json:"user_id"     gorm:"unique"`
-	Name         string         `json:"name"`
-	Role         string         `json:"role"`
-	FamilyUID    string         `json:"family_uid"`
-	Platform     string         `json:"platform"    gorm:"default:telegram"` // telegram, web, mobile, etc.
-	DeletedAt    gorm.DeletedAt `json:"-"`
+	UserID    string         `json:"user_id"     gorm:"unique"`
+	Name      string         `json:"name"`
+	Role      string         `json:"role"`
+	FamilyUID string         `json:"family_uid"`
+	Platform  string         `json:"platform"    gorm:"default:telegram"` // telegram, web, mobile, etc.
+	DeletedAt gorm.DeletedAt `json:"-"`
 	// Поля для состояния ввода текста (универсальные)
 	InputState   string `json:"input_state"`   // Что пользователь сейчас вводит
 	InputContext string `json:"input_context"` // Контекст ввода
