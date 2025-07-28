@@ -263,10 +263,6 @@ internal/           # Внутренние пакеты
 │   └── fill.go    # Тестовые данные
 └── telegram/      # Telegram Bot (в разработке)
 
-db/                # Миграции БД
-├── migrations/
-└── init/
-
 test_api.sh        # Скрипт тестирования API
 Makefile           # Команды автоматизации
 docker-compose.yml # Docker окружение
