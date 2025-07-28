@@ -8,20 +8,21 @@ type Families struct {
 	gorm.Model
 	Name            string         `json:"name"`
 	UID             string         `json:"uid"                gorm:"unique"`
-	CreatedByUserID int64          `json:"created_by_user_id"`
+	CreatedByUserID string         `json:"created_by_user_id"`
 	DeletedAt       gorm.DeletedAt `json:"-"`
 }
 
 type Users struct {
 	gorm.Model
-	TgID      int64          `json:"tg_id"     gorm:"unique"`
-	Name      string         `json:"name"`
-	Role      string         `json:"role"`
-	FamilyUID string         `json:"family_uid"`
-	DeletedAt gorm.DeletedAt `json:"-"`
-	// Поля для состояния ввода текста в телеграм боте
-	TextInputFor string `json:"text_input_for"`
-	TextInputArg string `json:"text_input_arg"`
+	UserID       string         `json:"user_id"     gorm:"unique"`
+	Name         string         `json:"name"`
+	Role         string         `json:"role"`
+	FamilyUID    string         `json:"family_uid"`
+	Platform     string         `json:"platform"    gorm:"default:telegram"` // telegram, web, mobile, etc.
+	DeletedAt    gorm.DeletedAt `json:"-"`
+	// Поля для состояния ввода текста (универсальные)
+	InputState   string `json:"input_state"`   // Что пользователь сейчас вводит
+	InputContext string `json:"input_context"` // Контекст ввода
 }
 
 type Entities struct {
@@ -32,12 +33,11 @@ type Entities struct {
 	Description string         `json:"description"`
 	Tokens      int            `json:"tokens"`
 	DeletedAt   gorm.DeletedAt `json:"-"`
-	// OneOff      bool           `json:"one_off"`
 }
 
 type Tasks struct {
 	Entities
-	Status string `json:"status" gorm:"default:new"` // new, check
+	Status string `json:"status" gorm:"default:new"` // new, check, completed
 	OneOff bool   `json:"one_off" gorm:"default:false"`
 }
 
@@ -47,7 +47,18 @@ type Rewards struct {
 
 type Tokens struct {
 	gorm.Model
-	TgID      int64          `json:"tg_id" gorm:"unique"`
+	UserID    string         `json:"user_id" gorm:"unique"`
 	Tokens    int            `json:"tokens" gorm:"default:0"`
 	DeletedAt gorm.DeletedAt `json:"-"`
+}
+
+// История операций с токенами
+type TokenHistory struct {
+	gorm.Model
+	UserID      string `json:"user_id"`
+	Amount      int    `json:"amount"`      // Положительное - заработал, отрицательное - потратил
+	Type        string `json:"type"`        // task_completed, reward_claimed, manual_adjustment
+	Description string `json:"description"` // Описание операции
+	TaskID      *uint  `json:"task_id,omitempty"`
+	RewardID    *uint  `json:"reward_id,omitempty"`
 }

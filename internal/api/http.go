@@ -42,6 +42,8 @@ func SetupAPI(database *gorm.DB, _logger *log.Logger) *http.Server {
 	mux.HandleFunc("/users/", handleUser)
 	mux.HandleFunc("/tokens", handleTokens)
 	mux.HandleFunc("/tokens/", handleUserTokens)
+	mux.HandleFunc("/token-history", handleTokenHistory)
+	mux.HandleFunc("/token-history/", handleUserTokenHistory)
 
 	return &http.Server{
 		Addr:    ADDRESS,
@@ -138,7 +140,7 @@ func handleFamilies(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Restricted fields: UID", http.StatusBadRequest)
 			return
 		}
-		if family.CreatedByUserID != 0 {
+		if family.CreatedByUserID != "" {
 			http.Error(w, "Restricted fields: CreatedByUserID", http.StatusBadRequest)
 			return
 		}
@@ -200,13 +202,18 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Missing required fields: FamilyUID", http.StatusBadRequest)
 			return
 		}
-		if user.TgID == 0 {
-			http.Error(w, "Missing required fields: TgID", http.StatusBadRequest)
+		if user.UserID == "" {
+			http.Error(w, "Missing required fields: UserID", http.StatusBadRequest)
 			return
 		}
 		if user.Role == "" {
 			http.Error(w, "Missing required fields: Role", http.StatusBadRequest)
 			return
+		}
+
+		// Set default platform if not provided
+		if user.Platform == "" {
+			user.Platform = "telegram"
 		}
 
 		// check user role
@@ -233,7 +240,7 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 		// Create tokens for child
 		if user.Role == "child" {
 			tokens := postgres.Tokens{
-				TgID:   user.TgID,
+				UserID: user.UserID,
 				Tokens: 0,
 			}
 			if err := db.Create(&tokens).Error; err != nil {
@@ -251,19 +258,14 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUser(w http.ResponseWriter, r *http.Request) {
-	tgIDStr := r.URL.Path[len("/users/"):]
-	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid TgID", http.StatusBadRequest)
-		return
-	}
+	userID := r.URL.Path[len("/users/"):]
 
 	switch r.Method {
 	case http.MethodGet:
 		// Get single user
-		logger.Debug("Getting user", "TgID", tgID)
+		logger.Debug("Getting user", "UserID", userID)
 		var user postgres.Users
-		if err := db.Where("tg_id = ?", tgID).First(&user).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).First(&user).Error; err != nil {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
@@ -271,7 +273,7 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		// Decode user
-		logger.Debug("Updating user", "TgID", tgID)
+		logger.Debug("Updating user", "UserID", userID)
 		var user postgres.Users
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -296,13 +298,13 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 
 		// check if user exists
 		var existingUser postgres.Users
-		if err := db.Where("tg_id = ?", tgID).First(&existingUser).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).First(&existingUser).Error; err != nil {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
 
 		// Update user
-		if err := db.Where("tg_id = ?", tgID).Updates(&user).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).Updates(&user).Error; err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -311,7 +313,7 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		// Check if user exists
 		var existingUser postgres.Users
-		err := db.Where("tg_id = ?", tgID).First(&existingUser).Error
+		err := db.Where("user_id = ?", userID).First(&existingUser).Error
 		if err == gorm.ErrRecordNotFound {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
@@ -321,8 +323,8 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Delete user
-		logger.Debug("Deleting user", "TgID", tgID)
-		if err := db.Where("tg_id = ?", tgID).Delete(&postgres.Users{}).Error; err != nil {
+		logger.Debug("Deleting user", "UserID", userID)
+		if err := db.Where("user_id = ?", userID).Delete(&postgres.Users{}).Error; err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -351,19 +353,14 @@ func handleTokens(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUserTokens(w http.ResponseWriter, r *http.Request) {
-	tgIDStr := r.URL.Path[len("/tokens/"):]
-	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid TgID", http.StatusBadRequest)
-		return
-	}
+	userID := r.URL.Path[len("/tokens/"):]
 
 	switch r.Method {
 	case http.MethodGet:
 		// Get user tokens
-		logger.Debug("Getting user tokens", "TgID", tgID)
+		logger.Debug("Getting user tokens", "UserID", userID)
 		var tokens postgres.Tokens
-		if err := db.Where("tg_id = ?", tgID).First(&tokens).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).First(&tokens).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				http.Error(w, "User tokens not found", http.StatusNotFound)
 			} else {
@@ -375,7 +372,7 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		// Update user tokens
-		logger.Debug("Updating user tokens", "TgID", tgID)
+		logger.Debug("Updating user tokens", "UserID", userID)
 		var tokensUpdate postgres.Tokens
 		if err := json.NewDecoder(r.Body).Decode(&tokensUpdate); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -384,7 +381,7 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 
 		// check if user tokens exist
 		var existingTokens postgres.Tokens
-		if err := db.Where("tg_id = ?", tgID).First(&existingTokens).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).First(&existingTokens).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				http.Error(w, "User tokens not found", http.StatusNotFound)
 			} else {
@@ -394,18 +391,154 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update tokens
-		if err := db.Where("tg_id = ?", tgID).Updates(&tokensUpdate).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).Updates(&tokensUpdate).Error; err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// Get updated tokens
-		if err := db.Where("tg_id = ?", tgID).First(&existingTokens).Error; err != nil {
+		if err := db.Where("user_id = ?", userID).First(&existingTokens).Error; err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		json.NewEncoder(w).Encode(existingTokens)
+
+	case http.MethodPost:
+		// Add tokens to user (для начисления/списания токенов)
+		logger.Debug("Adding tokens to user", "UserID", userID)
+
+		var request struct {
+			Amount      int    `json:"amount"`      // Может быть отрицательным для списания
+			Type        string `json:"type"`        // task_completed, reward_claimed, manual_adjustment
+			Description string `json:"description"` // Описание операции
+			TaskID      *uint  `json:"task_id,omitempty"`
+			RewardID    *uint  `json:"reward_id,omitempty"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Валидация
+		if request.Amount == 0 {
+			http.Error(w, "Amount cannot be zero", http.StatusBadRequest)
+			return
+		}
+		if request.Type == "" {
+			http.Error(w, "Type is required", http.StatusBadRequest)
+			return
+		}
+
+		// Получаем текущие токены
+		var tokens postgres.Tokens
+		if err := db.Where("user_id = ?", userID).First(&tokens).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// Создаем новую запись
+				tokens = postgres.Tokens{
+					UserID: userID,
+					Tokens: 0,
+				}
+				if err := db.Create(&tokens).Error; err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Проверяем, хватает ли токенов для списания
+		if request.Amount < 0 && tokens.Tokens < -request.Amount {
+			http.Error(w, "Insufficient tokens", http.StatusBadRequest)
+			return
+		}
+
+		// Обновляем токены
+		tokens.Tokens += request.Amount
+		if err := db.Save(&tokens).Error; err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Записываем в историю
+		history := postgres.TokenHistory{
+			UserID:      userID,
+			Amount:      request.Amount,
+			Type:        request.Type,
+			Description: request.Description,
+			TaskID:      request.TaskID,
+			RewardID:    request.RewardID,
+		}
+		if err := db.Create(&history).Error; err != nil {
+			logger.Error("Failed to save token history", "error", err)
+			// Не останавливаем операцию из-за ошибки в истории
+		}
+
+		json.NewEncoder(w).Encode(tokens)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleTokenHistory(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// List all token history
+		logger.Debug("Listing all token history")
+		var history []postgres.TokenHistory
+		if err := db.Find(&history).Error; err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(history)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleUserTokenHistory(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Path[len("/token-history/"):]
+
+	switch r.Method {
+	case http.MethodGet:
+		// Get user token history
+		logger.Debug("Getting user token history", "UserID", userID)
+
+		// Получаем параметры пагинации
+		limitStr := r.URL.Query().Get("limit")
+		offsetStr := r.URL.Query().Get("offset")
+
+		limit := 50 // по умолчанию
+		offset := 0
+
+		if limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+				limit = l
+			}
+		}
+
+		if offsetStr != "" {
+			if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+				offset = o
+			}
+		}
+
+		var history []postgres.TokenHistory
+		if err := db.Where("user_id = ?", userID).
+			Order("created_at DESC").
+			Limit(limit).
+			Offset(offset).
+			Find(&history).Error; err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(history)
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

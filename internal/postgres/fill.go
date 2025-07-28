@@ -7,34 +7,45 @@ func fill(db *gorm.DB) error {
 	family := Families{
 		Name:            "Family 1",
 		UID:             "sa726q",
-		CreatedByUserID: 220328701,
+		CreatedByUserID: "user_220328701",
 	}
 	db.Create(&family)
 
-	// Create user
-	user := Users{
-		TgID:      220328701,
+	// Create parent user
+	parent := Users{
+		UserID:    "user_220328701",
 		Name:      "Test Parent",
 		Role:      "parent",
 		FamilyUID: "sa726q",
+		Platform:  "telegram",
 	}
-	db.Create(&user)
+	db.Create(&parent)
 
 	// Create child user
 	child := Users{
-		TgID:      123456789,
+		UserID:    "user_123456789",
 		Name:      "Test Child",
 		Role:      "child",
 		FamilyUID: "sa726q",
+		Platform:  "telegram",
 	}
 	db.Create(&child)
 
 	// Create tokens for child
 	tokens := Tokens{
-		TgID:   123456789,
+		UserID: "user_123456789",
 		Tokens: 10,
 	}
 	db.Create(&tokens)
+
+	// Create initial token history
+	history := TokenHistory{
+		UserID:      "user_123456789",
+		Amount:      10,
+		Type:        "manual_adjustment",
+		Description: "Начальный баланс",
+	}
+	db.Create(&history)
 
 	// Create tasks
 	db.Create(&[]Tasks{

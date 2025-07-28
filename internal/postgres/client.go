@@ -57,6 +57,7 @@ func NewDB(config *Config, fill_only bool, logger *log.Logger) (*gorm.DB, error)
 		&Tokens{},
 		&Tasks{},
 		&Rewards{},
+		&TokenHistory{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
