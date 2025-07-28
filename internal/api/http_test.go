@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/postgres"
@@ -17,9 +18,39 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-const dsn = "host=localhost user=postgres password=password dbname=joytime port=55667 sslmode=disable"
+// cleanupTestData removes all test data from database in correct order to handle foreign key constraints
+func cleanupTestData() {
+	db.Unscoped().Where("1 = 1").Delete(&postgres.TokenHistory{})
+	db.Unscoped().Where("1 = 1").Delete(&postgres.Tokens{})
+	db.Unscoped().Where("1 = 1").Delete(&postgres.Tasks{})
+	db.Unscoped().Where("1 = 1").Delete(&postgres.Rewards{})
+	db.Unscoped().Where("1 = 1").Delete(&postgres.Users{})
+	db.Unscoped().Where("1 = 1").Delete(&postgres.Families{})
+}
 
-func setupTestDB(t *testing.T) *postgres.Families {
+// migrateTestSchema migrates all required models for testing
+func migrateTestSchema(includeEntities bool) error {
+	models := []interface{}{
+		&postgres.Users{},
+		&postgres.Families{},
+	}
+
+	if includeEntities {
+		models = append(models, &postgres.Entities{})
+	}
+
+	models = append(models,
+		&postgres.Tasks{},
+		&postgres.Rewards{},
+		&postgres.Tokens{},
+		&postgres.TokenHistory{},
+	)
+
+	return db.AutoMigrate(models...)
+}
+
+// setupTestDBConnection establishes database connection for testing
+func setupTestDBConnection() error {
 	level := log.InfoLevel
 	logger = log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
@@ -27,46 +58,80 @@ func setupTestDB(t *testing.T) *postgres.Families {
 		Level:           level,
 	})
 
-	var err error
+	// Build DSN from environment variables like main app
+	config := getTestDBConfig()
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		config.Host,
+		config.User,
+		config.Password,
+		config.Database,
+		config.Port,
+	)
 
-	// db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	var err error
 	db, err = gorm.Open(psql.Open(dsn), &gorm.Config{
 		Logger: gormlogger.New(
 			logger,
 			gormlogger.Config{
-				// SlowThreshold:             time.Second,       // Slow SQL threshold
-				// LogLevel:                  gormlogger.Silent, // Log level
-				IgnoreRecordNotFoundError: true, // Ignore ErrRecordNotFound error for logger
-				// ParameterizedQueries:      true,              // Don't include params in the SQL log
-				// Colorful:                  false,             // Disable color
+				IgnoreRecordNotFoundError: true,
 			},
 		),
 	})
+	return err
+}
+
+func getTestDBConfig() *postgres.Config {
+	getEnvOrDefault := func(key, defaultValue string) string {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+		return defaultValue
+	}
+
+	return &postgres.Config{
+		Host:     getEnvOrDefault("PGHOST", "localhost"),
+		User:     getEnvOrDefault("PGUSER", "joytime"),
+		Password: getEnvOrDefault("PGPASSWORD", "password"),
+		Database: getEnvOrDefault("PGDATABASE", "joytime"),
+		Port:     getEnvOrDefault("PGPORT", "5432"),
+	}
+}
+
+func setupTestDB(t *testing.T) *postgres.Families {
+	err := setupTestDBConnection()
 	assert.NoError(t, err)
+
+	// Clean existing data to ensure we start with a clean slate
+	// Delete in correct order to handle foreign key constraints
+	cleanupTestData()
 
 	// Migrate the schema
-	err = db.AutoMigrate(
-		&postgres.Users{},
-		&postgres.Families{},
-		&postgres.Tasks{},
-		&postgres.Rewards{},
-		&postgres.Tokens{},
-		&postgres.TokenHistory{},
-	)
+	err = migrateTestSchema(false)
 	assert.NoError(t, err)
 
-	// create a family
+	// Setup teardown cleanup function
+	t.Cleanup(func() {
+		// Clean test data after test completion
+		cleanupTestData()
+	})
+
+	// create a family with unique UID
+	uniqueUID := fmt.Sprintf("%s_%d", t.Name(), time.Now().UnixNano())
 	family := postgres.Families{
 		Name: t.Name(),
-		UID:  t.Name(),
+		UID:  uniqueUID,
 	}
-	db.Create(&family)
+	result := db.Create(&family)
+	if result.Error != nil {
+		t.Fatalf("Failed to create family: %v", result.Error)
+	}
+
 	return &family
 }
 
 func TestUserEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
-	defer db.Delete(setupFamily)
 
 	// Test creating a user
 	t.Run("Create User", func(t *testing.T) {
@@ -331,7 +396,6 @@ func TestUserEndpoints(t *testing.T) {
 			UserID: "existing_user_123",
 		}
 		db.Create(&user1)
-		defer db.Delete(&user1)
 
 		body, _ := json.Marshal(user2)
 		req := httptest.NewRequest("PUT", "/users/test_user_123", bytes.NewBuffer(body))
@@ -363,7 +427,27 @@ func TestUserEndpoints(t *testing.T) {
 
 func TestFamilyEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
-	// defer db.Delete(setupFamily)
+
+	// Test listing families (run first before any families are created)
+	t.Run("List Families", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/families", nil)
+		w := httptest.NewRecorder()
+		handleFamilies(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response []postgres.Families
+		err := json.NewDecoder(w.Body).Decode(&response)
+		assert.NoError(t, err)
+		assert.Len(t, response, 1)
+		assert.Equal(t, "TestFamilyEndpoints", response[0].Name)
+
+		// Verify families are in the database
+		var dbFamilies []postgres.Families
+		err = db.Find(&dbFamilies).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "TestFamilyEndpoints", dbFamilies[0].Name)
+	})
 
 	// Test creating a family
 	t.Run("Create Family", func(t *testing.T) {
@@ -389,8 +473,7 @@ func TestFamilyEndpoints(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, family.Name, dbFamily.Name)
 
-		// Delete family
-		db.Delete(&dbFamily)
+		// Note: Family cleanup handled by teardown function
 	})
 
 	// Test creating a family with restricted fields
@@ -433,27 +516,6 @@ func TestFamilyEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "Missing required fields: Name")
-	})
-
-	// Test listing families
-	t.Run("List Families", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/families", nil)
-		w := httptest.NewRecorder()
-		handleFamilies(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Families
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "TestFamilyEndpoints", response[0].Name)
-
-		// Verify families are in the database
-		var dbFamilies []postgres.Families
-		err = db.Find(&dbFamilies).Error
-		assert.NoError(t, err)
-		assert.Equal(t, "TestFamilyEndpoints", dbFamilies[0].Name)
 	})
 
 	// Test updating a family
@@ -519,7 +581,6 @@ func TestFamilyEndpoints(t *testing.T) {
 			UID: "existing-uid",
 		}
 		db.Create(&family1)
-		defer db.Delete(&family1)
 
 		body, _ := json.Marshal(family2)
 		req := httptest.NewRequest("PUT", "/families/"+setupFamily.UID, bytes.NewBuffer(body))
@@ -547,11 +608,51 @@ func TestFamilyEndpoints(t *testing.T) {
 		err := db.Where("uid = ?", setupFamily.UID).First(&dbFamily).Error
 		assert.Error(t, err)
 	})
+
+	// Test getting a single family
+	t.Run("Get Single Family", func(t *testing.T) {
+		// Create a family for this test
+		family := postgres.Families{
+			Name: "Single Family Test",
+		}
+		body, _ := json.Marshal(family)
+		req := httptest.NewRequest("POST", "/families", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+		handleFamilies(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var createdFamily postgres.Families
+		err := json.NewDecoder(w.Body).Decode(&createdFamily)
+		assert.NoError(t, err)
+
+		// Now get the single family
+		req = httptest.NewRequest("GET", "/families/"+createdFamily.UID, nil)
+		w = httptest.NewRecorder()
+		handleFamily(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response postgres.Families
+		err = json.NewDecoder(w.Body).Decode(&response)
+		assert.NoError(t, err)
+		assert.Equal(t, createdFamily.UID, response.UID)
+		assert.Equal(t, "Single Family Test", response.Name)
+	})
+
+	// Test getting a non-existent single family
+	t.Run("Get Non-existent Single Family", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/families/nonexistent-uid", nil)
+		w := httptest.NewRecorder()
+		handleFamily(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "Family not found")
+	})
 }
 
 func TestTaskEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
-	defer db.Delete(setupFamily)
 
 	// Test creating a task
 	t.Run("Create Task", func(t *testing.T) {
@@ -633,11 +734,46 @@ func TestTaskEndpoints(t *testing.T) {
 		assert.Len(t, response, 1)
 		assert.Equal(t, "Test Task", response[0].Name)
 	})
+
+	// Test deleting a task by family and name
+	t.Run("Delete Task", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/task/"+setupFamily.UID+"/Test%20Task", nil)
+		w := httptest.NewRecorder()
+		handleSingleTask(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+
+		// Verify task is deleted from the database
+		var dbTask postgres.Tasks
+		err := db.Where("family_uid = ? AND name = ?", setupFamily.UID, "Test Task").
+			First(&dbTask).
+			Error
+		assert.Error(t, err)
+	})
+
+	// Test deleting a non-existent task
+	t.Run("Delete Non-existent Task", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/task/"+setupFamily.UID+"/Nonexistent%20Task", nil)
+		w := httptest.NewRecorder()
+		handleSingleTask(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "Entity not found")
+	})
+
+	// Test deleting a task with wrong family
+	t.Run("Delete Task with Wrong Family", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/task/nonexistent-family/Test%20Task", nil)
+		w := httptest.NewRecorder()
+		handleSingleTask(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "Family not found")
+	})
 }
 
 func TestRewardEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
-	defer db.Delete(setupFamily)
 
 	// Test creating a reward
 	t.Run("Create Reward", func(t *testing.T) {
@@ -714,11 +850,50 @@ func TestRewardEndpoints(t *testing.T) {
 		assert.Len(t, response, 1)
 		assert.Equal(t, "Test Reward", response[0].Name)
 	})
+
+	// Test deleting a reward by family and name
+	t.Run("Delete Reward", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/reward/"+setupFamily.UID+"/Test%20Reward", nil)
+		w := httptest.NewRecorder()
+		handleSingleReward(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+
+		// Verify reward is deleted from the database
+		var dbReward postgres.Rewards
+		err := db.Where("family_uid = ? AND name = ?", setupFamily.UID, "Test Reward").
+			First(&dbReward).
+			Error
+		assert.Error(t, err)
+	})
+
+	// Test deleting a non-existent reward
+	t.Run("Delete Non-existent Reward", func(t *testing.T) {
+		req := httptest.NewRequest(
+			"DELETE",
+			"/reward/"+setupFamily.UID+"/Nonexistent%20Reward",
+			nil,
+		)
+		w := httptest.NewRecorder()
+		handleSingleReward(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "Entity not found")
+	})
+
+	// Test deleting a reward with wrong family
+	t.Run("Delete Reward with Wrong Family", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/reward/nonexistent-family/Test%20Reward", nil)
+		w := httptest.NewRecorder()
+		handleSingleReward(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "Family not found")
+	})
 }
 
 func TestTokenEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
-	defer db.Delete(setupFamily)
 
 	// Create a test user first
 	user := postgres.Users{
@@ -729,7 +904,6 @@ func TestTokenEndpoints(t *testing.T) {
 		Platform:  "telegram",
 	}
 	db.Create(&user)
-	defer db.Delete(&user)
 
 	// Create tokens for the user
 	tokens := postgres.Tokens{
@@ -737,7 +911,6 @@ func TestTokenEndpoints(t *testing.T) {
 		Tokens: 50,
 	}
 	db.Create(&tokens)
-	defer db.Delete(&tokens)
 
 	// Test getting user tokens
 	t.Run("Get User Tokens", func(t *testing.T) {
@@ -879,11 +1052,20 @@ func TestTokenEndpoints(t *testing.T) {
 		assert.Equal(t, "test_child_123", response[0].UserID)
 		assert.Equal(t, 80, response[0].Tokens)
 	})
+
+	// Test deleting tokens (not implemented)
+	t.Run("Delete Tokens - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/tokens/test_child_123", nil)
+		w := httptest.NewRecorder()
+		handleUserTokens(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
+	})
 }
 
 func TestTokenHistoryEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
-	defer db.Delete(setupFamily)
 
 	// Create a test user first
 	user := postgres.Users{
@@ -893,7 +1075,6 @@ func TestTokenHistoryEndpoints(t *testing.T) {
 		FamilyUID: setupFamily.UID,
 	}
 	db.Create(&user)
-	defer db.Delete(&user)
 
 	// Create some token history
 	history1 := postgres.TokenHistory{
@@ -910,8 +1091,6 @@ func TestTokenHistoryEndpoints(t *testing.T) {
 	}
 	db.Create(&history1)
 	db.Create(&history2)
-	defer db.Delete(&history1)
-	defer db.Delete(&history2)
 
 	// Test getting user token history
 	t.Run("Get User Token History", func(t *testing.T) {
@@ -958,5 +1137,65 @@ func TestTokenHistoryEndpoints(t *testing.T) {
 		err := json.NewDecoder(w.Body).Decode(&response)
 		assert.NoError(t, err)
 		assert.Len(t, response, 2)
+	})
+
+	// Test creating token history (not implemented)
+	t.Run("Create Token History - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/token-history", nil)
+		w := httptest.NewRecorder()
+		handleTokenHistory(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
+	})
+
+	// Test updating all token history (not implemented)
+	t.Run("Update All Token History - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/token-history", nil)
+		w := httptest.NewRecorder()
+		handleTokenHistory(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
+	})
+
+	// Test deleting all token history (not implemented)
+	t.Run("Delete All Token History - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/token-history", nil)
+		w := httptest.NewRecorder()
+		handleTokenHistory(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
+	})
+
+	// Test creating user token history (not implemented)
+	t.Run("Create User Token History - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/token-history/test_history_user", nil)
+		w := httptest.NewRecorder()
+		handleUserTokenHistory(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
+	})
+
+	// Test updating user token history (not implemented)
+	t.Run("Update User Token History - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/token-history/test_history_user", nil)
+		w := httptest.NewRecorder()
+		handleUserTokenHistory(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
+	})
+
+	// Test deleting user token history (not implemented)
+	t.Run("Delete User Token History - Not Implemented", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/token-history/test_history_user", nil)
+		w := httptest.NewRecorder()
+		handleUserTokenHistory(w, req)
+
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Contains(t, w.Body.String(), "Not implemented")
 	})
 }

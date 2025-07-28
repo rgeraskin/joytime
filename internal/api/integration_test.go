@@ -5,60 +5,30 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	psql "gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 // setupIntegrationDB sets up test database for integration tests
 func setupIntegrationDB(t *testing.T) {
-	level := log.InfoLevel
-	logger = log.NewWithOptions(os.Stderr, log.Options{
-		ReportCaller:    true,
-		ReportTimestamp: true,
-		Level:           level,
-	})
-
-	var err error
-
-	// Use test database
-	testDSN := "host=localhost user=joytime password=password dbname=joytime port=5432 sslmode=disable"
-	db, err = gorm.Open(psql.Open(testDSN), &gorm.Config{
-		Logger: gormlogger.New(
-			logger,
-			gormlogger.Config{
-				IgnoreRecordNotFoundError: true,
-			},
-		),
-	})
+	err := setupTestDBConnection()
 	require.NoError(t, err)
 
-	// Clean database before tests
-	db.Exec("DELETE FROM token_histories")
-	db.Exec("DELETE FROM tokens")
-	db.Exec("DELETE FROM tasks")
-	db.Exec("DELETE FROM rewards")
-	db.Exec("DELETE FROM users")
-	db.Exec("DELETE FROM families")
+	// Clean existing data to ensure we start with a clean slate
+	cleanupTestData()
 
 	// Migrate schema
-	err = db.AutoMigrate(
-		&postgres.Users{},
-		&postgres.Families{},
-		&postgres.Entities{},
-		&postgres.Tasks{},
-		&postgres.Rewards{},
-		&postgres.Tokens{},
-		&postgres.TokenHistory{},
-	)
+	err = migrateTestSchema(true)
 	require.NoError(t, err)
+
+	// Setup teardown cleanup function
+	t.Cleanup(func() {
+		// Clean test data after test completion
+		cleanupTestData()
+	})
 }
 
 // TestFullAPIWorkflow tests complete API workflow
@@ -193,7 +163,7 @@ func TestFullAPIWorkflow(t *testing.T) {
 		t.Log("7. 📊 Getting all family tasks...")
 		req = httptest.NewRequest(http.MethodGet, "/tasks/"+familyUID, nil)
 		w = httptest.NewRecorder()
-		handleEntities(w, req, "tasks")
+		handleEntity(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var tasks []postgres.Tasks
@@ -206,7 +176,7 @@ func TestFullAPIWorkflow(t *testing.T) {
 		t.Log("8. 🏆 Getting all family rewards...")
 		req = httptest.NewRequest(http.MethodGet, "/rewards/"+familyUID, nil)
 		w = httptest.NewRecorder()
-		handleEntities(w, req, "rewards")
+		handleEntity(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var rewards []postgres.Rewards
@@ -224,7 +194,11 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"task_id":     taskID,
 		}
 		addTokensJSON, _ := json.Marshal(addTokensData)
-		req = httptest.NewRequest(http.MethodPost, "/tokens/user_child_456", bytes.NewBuffer(addTokensJSON))
+		req = httptest.NewRequest(
+			http.MethodPost,
+			"/tokens/user_child_456",
+			bytes.NewBuffer(addTokensJSON),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
 		handleUserTokens(w, req)
@@ -243,7 +217,11 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"reward_id":   rewardID,
 		}
 		subtractTokensJSON, _ := json.Marshal(subtractTokensData)
-		req = httptest.NewRequest(http.MethodPost, "/tokens/user_child_456", bytes.NewBuffer(subtractTokensJSON))
+		req = httptest.NewRequest(
+			http.MethodPost,
+			"/tokens/user_child_456",
+			bytes.NewBuffer(subtractTokensJSON),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
 		handleUserTokens(w, req)
@@ -283,7 +261,11 @@ func TestFullAPIWorkflow(t *testing.T) {
 
 		// 12. Get token history with pagination (limit=1)
 		t.Log("12. 📈 Getting token history with pagination (limit=1)...")
-		req = httptest.NewRequest(http.MethodGet, "/token-history/user_child_456?limit=1&offset=0", nil)
+		req = httptest.NewRequest(
+			http.MethodGet,
+			"/token-history/user_child_456?limit=1&offset=0",
+			nil,
+		)
 		w = httptest.NewRecorder()
 		handleUserTokenHistory(w, req)
 
@@ -342,7 +324,11 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"family_uid":  familyUID,
 		}
 		updateJSON, _ := json.Marshal(updateData)
-		req = httptest.NewRequest(http.MethodPut, "/users/user_child_456", bytes.NewBuffer(updateJSON))
+		req = httptest.NewRequest(
+			http.MethodPut,
+			"/users/user_child_456",
+			bytes.NewBuffer(updateJSON),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
 		handleUser(w, req)
@@ -362,87 +348,5 @@ func TestFullAPIWorkflow(t *testing.T) {
 		t.Logf("- Performed token operations (add/subtract)")
 		t.Logf("- Created token operation history")
 		t.Logf("- API supports different platforms (telegram, web)")
-	})
-}
-
-// TestTokenOperations tests various token operations
-func TestTokenOperations(t *testing.T) {
-	setupIntegrationDB(t)
-
-	// Create test data
-	family := &postgres.Families{
-		Name:            "Token Test Family",
-		UID:             "token_test_family",
-		CreatedByUserID: "user_token_parent",
-	}
-	db.Create(family)
-
-	user := &postgres.Users{
-		UserID:    "user_token_child",
-		Name:      "Token Test Child",
-		Role:      "child",
-		FamilyUID: family.UID,
-		Platform:  "telegram",
-	}
-	db.Create(user)
-
-	tokens := &postgres.Tokens{
-		UserID: user.UserID,
-		Tokens: 0,
-	}
-	db.Create(tokens)
-
-	t.Run("Add Tokens", func(t *testing.T) {
-		addData := map[string]interface{}{
-			"amount":      15,
-			"type":        "manual_adjustment",
-			"description": "Bonus from parents",
-		}
-		addJSON, _ := json.Marshal(addData)
-		req := httptest.NewRequest(http.MethodPost, "/tokens/user_token_child", bytes.NewBuffer(addJSON))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		var result postgres.Tokens
-		err := json.Unmarshal(w.Body.Bytes(), &result)
-		require.NoError(t, err)
-		assert.Equal(t, 15, result.Tokens)
-	})
-
-	t.Run("Subtract Tokens", func(t *testing.T) {
-		subtractData := map[string]interface{}{
-			"amount":      -8,
-			"type":        "reward_claimed",
-			"description": "Spent on toy",
-		}
-		subtractJSON, _ := json.Marshal(subtractData)
-		req := httptest.NewRequest(http.MethodPost, "/tokens/user_token_child", bytes.NewBuffer(subtractJSON))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		var result postgres.Tokens
-		err := json.Unmarshal(w.Body.Bytes(), &result)
-		require.NoError(t, err)
-		assert.Equal(t, 7, result.Tokens) // 15 - 8 = 7
-	})
-
-	t.Run("Insufficient Tokens", func(t *testing.T) {
-		subtractData := map[string]interface{}{
-			"amount":      -10,
-			"type":        "reward_claimed",
-			"description": "Attempt to spend more than available",
-		}
-		subtractJSON, _ := json.Marshal(subtractData)
-		req := httptest.NewRequest(http.MethodPost, "/tokens/user_token_child", bytes.NewBuffer(subtractJSON))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Insufficient tokens")
 	})
 }

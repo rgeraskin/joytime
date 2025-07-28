@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -34,8 +35,10 @@ func SetupAPI(database *gorm.DB, _logger *log.Logger) *http.Server {
 	// Define routes
 	mux.HandleFunc("/tasks", handleTasks)
 	mux.HandleFunc("/tasks/", handleTask)
+	mux.HandleFunc("/task/", handleSingleTask) // New route for individual task operations
 	mux.HandleFunc("/rewards", handleRewards)
 	mux.HandleFunc("/rewards/", handleReward)
+	mux.HandleFunc("/reward/", handleSingleReward) // New route for individual reward operations
 	mux.HandleFunc("/families", handleFamilies)
 	mux.HandleFunc("/families/", handleFamily)
 	mux.HandleFunc("/users", handleUsers)
@@ -237,7 +240,7 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// check if family exists
+				// check if family exists
 		logger.Debug("Checking if family exists", "family_uid", user.FamilyUID)
 		var family postgres.Families
 		if err := db.Where("uid = ?", user.FamilyUID).First(&family).Error; err != nil {
@@ -515,6 +518,10 @@ func handleUserTokens(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+	case http.MethodDelete:
+		// Delete user tokens - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -534,6 +541,18 @@ func handleTokenHistory(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+	case http.MethodPost:
+		// Create token history - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+
+	case http.MethodPut:
+		// Update all token history - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+
+	case http.MethodDelete:
+		// Delete all token history - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -582,6 +601,18 @@ func handleUserTokenHistory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+	case http.MethodPost:
+		// Create user token history - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+
+	case http.MethodPut:
+		// Update user token history - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+
+	case http.MethodDelete:
+		// Delete user token history - not implemented
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -597,6 +628,11 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	handleEntity(w, r)
 }
 
+func handleSingleTask(w http.ResponseWriter, r *http.Request) {
+	logger.Debug("Handling single task")
+	handleSingleEntity(w, r, "tasks")
+}
+
 func handleRewards(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("Handling rewards")
 	handleEntities(w, r, "rewards")
@@ -605,6 +641,11 @@ func handleRewards(w http.ResponseWriter, r *http.Request) {
 func handleReward(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("Handling reward")
 	handleEntity(w, r)
+}
+
+func handleSingleReward(w http.ResponseWriter, r *http.Request) {
+	logger.Debug("Handling single reward")
+	handleSingleEntity(w, r, "rewards")
 }
 
 func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
@@ -850,6 +891,262 @@ func handleEntity(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+		}
+
+	case http.MethodDelete:
+		// check if family exists
+		var family postgres.Families
+		if err := db.Where("uid = ?", familyUID).First(&family).Error; err != nil {
+			http.Error(w, "Family not found", http.StatusBadRequest)
+			return
+		}
+
+		// check if entity exists
+		logger.Debug("Checking if entity exists for deletion")
+		where := db.Where("family_uid = ?", family.UID)
+		if strings.Contains(r.URL.Path, "tasks") {
+			var existingEntity postgres.Tasks
+			if err := where.Where("name = ?", r.URL.Path[strings.Index(r.URL.Path, "/")+1:]).First(&existingEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := db.Where("family_uid = ? AND name = ?", family.UID, r.URL.Path[strings.Index(r.URL.Path, "/")+1:]).Delete(&postgres.Tasks{}).Error; err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		} else if strings.Contains(r.URL.Path, "rewards") {
+			var existingEntity postgres.Rewards
+			if err := where.Where("name = ?", r.URL.Path[strings.Index(r.URL.Path, "/")+1:]).First(&existingEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := db.Where("family_uid = ? AND name = ?", family.UID, r.URL.Path[strings.Index(r.URL.Path, "/")+1:]).Delete(&postgres.Rewards{}).Error; err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleSingleEntity(w http.ResponseWriter, r *http.Request, entityType string) {
+	// Parse URL path: /task/{family_uid}/{entity_name} or /reward/{family_uid}/{entity_name}
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if len(pathParts) < 3 {
+		http.Error(w, "Invalid URL path", http.StatusBadRequest)
+		return
+	}
+
+	familyUID := pathParts[1]
+	entityNameEncoded := pathParts[2]
+
+	// Decode URL-encoded entity name
+	entityName, err := url.QueryUnescape(entityNameEncoded)
+	if err != nil {
+		http.Error(w, "Invalid entity name encoding", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// check if family exists
+		var family postgres.Families
+		if err := db.Where("uid = ?", familyUID).First(&family).Error; err != nil {
+			http.Error(w, "Family not found", http.StatusBadRequest)
+			return
+		}
+
+		// Get single entity
+		logger.Debug("Getting single entity", "entityType", entityType, "familyUID", family.UID, "name", entityName)
+		where := db.Where("family_uid = ?", family.UID).Where("name = ?", entityName)
+		if entityType == "tasks" {
+			var singleEntity postgres.Tasks
+			if err := where.First(&singleEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := json.NewEncoder(w).Encode(singleEntity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if entityType == "rewards" {
+			var singleEntity postgres.Rewards
+			if err := where.First(&singleEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := json.NewEncoder(w).Encode(singleEntity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+	case http.MethodPut:
+		// Decode entity
+		var entity postgres.Entities
+		if err := json.NewDecoder(r.Body).Decode(&entity); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// check if family uid is provided
+		if entity.FamilyUID == "" {
+			http.Error(w, "Missing required fields: FamilyUID", http.StatusBadRequest)
+			return
+		}
+		logger = logger.With("family_uid", entity.FamilyUID)
+
+		// check if name is provided
+		if entity.Name == "" {
+			http.Error(w, "Missing required fields: Name", http.StatusBadRequest)
+			return
+		}
+		logger = logger.With("name", entity.Name)
+
+		// check if tokens is provided
+		if entity.Tokens == 0 {
+			http.Error(w, "Missing required fields: Tokens", http.StatusBadRequest)
+			return
+		}
+		logger = logger.With("tokens", entity.Tokens)
+
+		// check if family exists
+		logger.Debug("Checking if family exists")
+		var family postgres.Families
+		if err := db.Where("uid = ?", entity.FamilyUID).First(&family).Error; err != nil {
+			http.Error(w, "Family not found", http.StatusBadRequest)
+			return
+		}
+
+		// check if entity exists
+		logger.Debug("Checking if entity exists")
+		where := db.Where("family_uid = ?", entity.FamilyUID).Where("name = ?", entity.Name)
+		if entityType == "tasks" {
+			var existingEntity postgres.Tasks
+			if err := where.First(&existingEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+
+			// Update entity
+			logger.Debug("Updating entity")
+			existingEntity.Tokens = entity.Tokens
+			existingEntity.Description = entity.Description
+			if err := db.Save(&existingEntity).Error; err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(existingEntity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if entityType == "rewards" {
+			var existingEntity postgres.Rewards
+			if err := where.First(&existingEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+
+			// Update entity
+			logger.Debug("Updating entity")
+			existingEntity.Tokens = entity.Tokens
+			existingEntity.Description = entity.Description
+			if err := db.Save(&existingEntity).Error; err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(existingEntity); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+
+	case http.MethodDelete:
+		// check if family exists
+		var family postgres.Families
+		if err := db.Where("uid = ?", familyUID).First(&family).Error; err != nil {
+			http.Error(w, "Family not found", http.StatusBadRequest)
+			return
+		}
+
+		// check if entity exists
+		logger.Debug("Checking if entity exists for deletion")
+		where := db.Where("family_uid = ?", family.UID)
+		if entityType == "tasks" {
+			var existingEntity postgres.Tasks
+			if err := where.Where("name = ?", entityName).First(&existingEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := db.Where("family_uid = ? AND name = ?", family.UID, entityName).Delete(&postgres.Tasks{}).Error; err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		} else if entityType == "rewards" {
+			var existingEntity postgres.Rewards
+			if err := where.Where("name = ?", entityName).First(&existingEntity).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					http.Error(w, "Entity not found", http.StatusNotFound)
+					return
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := db.Where("family_uid = ? AND name = ?", family.UID, entityName).Delete(&postgres.Rewards{}).Error; err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 
 	default:

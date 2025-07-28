@@ -32,7 +32,11 @@ $BUILD_DIR/$APP_NAME
 # === Testing ===
 [tasks.test]
 description = "Run all tests"
+depends = ["db.clean"]
 run = """
+echo '🐘 Starting PostgreSQL...'
+mise run db.up
+sleep 5
 echo '🧪 Running tests...'
 go test -v ./...
 """
@@ -67,6 +71,13 @@ description = "Stop PostgreSQL"
 run = """
 echo '🛑 Stopping PostgreSQL...'
 docker compose down postgres
+"""
+
+[tasks."db.clean"]
+description = "Stop PostgreSQL and remove volumes"
+run = """
+echo '🛑 Stopping PostgreSQL and removing volumes...'
+docker compose down -v postgres
 """
 
 [tasks."db.fill"]
