@@ -17,7 +17,7 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// setupIntegrationDB настраивает тестовую базу данных для интеграционных тестов
+// setupIntegrationDB sets up test database for integration tests
 func setupIntegrationDB(t *testing.T) {
 	level := log.InfoLevel
 	logger = log.NewWithOptions(os.Stderr, log.Options{
@@ -28,7 +28,7 @@ func setupIntegrationDB(t *testing.T) {
 
 	var err error
 
-	// Используем тестовую базу данных
+	// Use test database
 	testDSN := "host=localhost user=joytime password=password dbname=joytime port=5432 sslmode=disable"
 	db, err = gorm.Open(psql.Open(testDSN), &gorm.Config{
 		Logger: gormlogger.New(
@@ -40,7 +40,7 @@ func setupIntegrationDB(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Очищаем базу данных перед тестами
+	// Clean database before tests
 	db.Exec("DELETE FROM token_histories")
 	db.Exec("DELETE FROM tokens")
 	db.Exec("DELETE FROM tasks")
@@ -48,7 +48,7 @@ func setupIntegrationDB(t *testing.T) {
 	db.Exec("DELETE FROM users")
 	db.Exec("DELETE FROM families")
 
-	// Мигрируем схему
+	// Migrate schema
 	err = db.AutoMigrate(
 		&postgres.Users{},
 		&postgres.Families{},
@@ -61,14 +61,14 @@ func setupIntegrationDB(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestFullAPIWorkflow тестирует полный рабочий процесс API
-// Заменяет test_api.sh скрипт
+// TestFullAPIWorkflow tests complete API workflow
+// Replaces test_api.sh script
 func TestFullAPIWorkflow(t *testing.T) {
 	setupIntegrationDB(t)
 
 	t.Run("Complete API Workflow", func(t *testing.T) {
-		// 1. Создание семьи
-		t.Log("1. 📋 Создание семьи...")
+		// 1. Create family
+		t.Log("1. 📋 Creating family...")
 		familyData := map[string]interface{}{
 			"name": "Test Family",
 		}
@@ -86,8 +86,8 @@ func TestFullAPIWorkflow(t *testing.T) {
 		familyUID := family.UID
 		t.Logf("Family UID: %s", familyUID)
 
-		// 2. Создание родителя
-		t.Log("2. 👤 Создание родителя...")
+		// 2. Create parent
+		t.Log("2. 👤 Creating parent...")
 		parentData := map[string]interface{}{
 			"user_id":    "user_parent_123",
 			"name":       "Test Parent",
@@ -109,8 +109,8 @@ func TestFullAPIWorkflow(t *testing.T) {
 		assert.Equal(t, "Test Parent", parent.Name)
 		assert.Equal(t, "parent", parent.Role)
 
-		// 3. Создание ребенка
-		t.Log("3. 👶 Создание ребенка...")
+		// 3. Create child
+		t.Log("3. 👶 Creating child...")
 		childData := map[string]interface{}{
 			"user_id":    "user_child_456",
 			"name":       "Test Child",
@@ -132,8 +132,8 @@ func TestFullAPIWorkflow(t *testing.T) {
 		assert.Equal(t, "Test Child", child.Name)
 		assert.Equal(t, "child", child.Role)
 
-		// 4. Проверка токенов ребенка (должны быть автоматически созданы)
-		t.Log("4. ⚡ Проверка токенов ребенка...")
+		// 4. Check child tokens (should be automatically created)
+		t.Log("4. ⚡ Checking child tokens...")
 		req = httptest.NewRequest(http.MethodGet, "/tokens/user_child_456", nil)
 		w = httptest.NewRecorder()
 		handleUserTokens(w, req)
@@ -143,15 +143,15 @@ func TestFullAPIWorkflow(t *testing.T) {
 		err = json.Unmarshal(w.Body.Bytes(), &tokens)
 		require.NoError(t, err)
 		assert.Equal(t, "user_child_456", tokens.UserID)
-		assert.Equal(t, 0, tokens.Tokens) // Начальное значение
+		assert.Equal(t, 0, tokens.Tokens) // Initial value
 
-		// 5. Создание задания
-		t.Log("5. 📝 Создание задания...")
+		// 5. Create task
+		t.Log("5. 📝 Creating task...")
 		taskData := map[string]interface{}{
 			"family_uid":  familyUID,
-			"name":        "Убраться в комнате",
+			"name":        "Clean the room",
 			"tokens":      10,
-			"description": "Навести порядок и пропылесосить",
+			"description": "Tidy up and vacuum",
 		}
 		taskJSON, _ := json.Marshal(taskData)
 		req = httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewBuffer(taskJSON))
@@ -163,17 +163,17 @@ func TestFullAPIWorkflow(t *testing.T) {
 		var task postgres.Tasks
 		err = json.Unmarshal(w.Body.Bytes(), &task)
 		require.NoError(t, err)
-		assert.Equal(t, "Убраться в комнате", task.Name)
+		assert.Equal(t, "Clean the room", task.Name)
 		assert.Equal(t, 10, task.Tokens)
 		taskID := task.ID
 
-		// 6. Создание награды
-		t.Log("6. 🎁 Создание награды...")
+		// 6. Create reward
+		t.Log("6. 🎁 Creating reward...")
 		rewardData := map[string]interface{}{
 			"family_uid":  familyUID,
-			"name":        "Посмотреть мультики",
+			"name":        "Watch cartoons",
 			"tokens":      5,
-			"description": "15 минут мультиков",
+			"description": "15 minutes of cartoons",
 		}
 		rewardJSON, _ := json.Marshal(rewardData)
 		req = httptest.NewRequest(http.MethodPost, "/rewards", bytes.NewBuffer(rewardJSON))
@@ -185,12 +185,12 @@ func TestFullAPIWorkflow(t *testing.T) {
 		var reward postgres.Rewards
 		err = json.Unmarshal(w.Body.Bytes(), &reward)
 		require.NoError(t, err)
-		assert.Equal(t, "Посмотреть мультики", reward.Name)
+		assert.Equal(t, "Watch cartoons", reward.Name)
 		assert.Equal(t, 5, reward.Tokens)
 		rewardID := reward.ID
 
-		// 7. Получение всех заданий семьи
-		t.Log("7. 📊 Получение всех заданий семьи...")
+		// 7. Get all family tasks
+		t.Log("7. 📊 Getting all family tasks...")
 		req = httptest.NewRequest(http.MethodGet, "/tasks/"+familyUID, nil)
 		w = httptest.NewRecorder()
 		handleEntities(w, req, "tasks")
@@ -200,10 +200,10 @@ func TestFullAPIWorkflow(t *testing.T) {
 		err = json.Unmarshal(w.Body.Bytes(), &tasks)
 		require.NoError(t, err)
 		assert.Len(t, tasks, 1)
-		assert.Equal(t, "Убраться в комнате", tasks[0].Name)
+		assert.Equal(t, "Clean the room", tasks[0].Name)
 
-		// 8. Получение всех наград семьи
-		t.Log("8. 🏆 Получение всех наград семьи...")
+		// 8. Get all family rewards
+		t.Log("8. 🏆 Getting all family rewards...")
 		req = httptest.NewRequest(http.MethodGet, "/rewards/"+familyUID, nil)
 		w = httptest.NewRecorder()
 		handleEntities(w, req, "rewards")
@@ -213,14 +213,14 @@ func TestFullAPIWorkflow(t *testing.T) {
 		err = json.Unmarshal(w.Body.Bytes(), &rewards)
 		require.NoError(t, err)
 		assert.Len(t, rewards, 1)
-		assert.Equal(t, "Посмотреть мультики", rewards[0].Name)
+		assert.Equal(t, "Watch cartoons", rewards[0].Name)
 
-		// 9. Начисление токенов ребенку за выполнение задания (+10)
-		t.Log("9. 💰 Начисление токенов ребенку за выполнение задания (+10)...")
+		// 9. Award tokens to child for completing task (+10)
+		t.Log("9. 💰 Awarding tokens to child for completing task (+10)...")
 		addTokensData := map[string]interface{}{
 			"amount":      10,
 			"type":        "task_completed",
-			"description": "Выполнил задание: Убраться в комнате",
+			"description": "Completed task: Clean the room",
 			"task_id":     taskID,
 		}
 		addTokensJSON, _ := json.Marshal(addTokensData)
@@ -234,12 +234,12 @@ func TestFullAPIWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 10, tokens.Tokens)
 
-		// 10. Списание токенов за награду (-5)
-		t.Log("10. 🎯 Списание токенов за награду (-5)...")
+		// 10. Deduct tokens for reward (-5)
+		t.Log("10. 🎯 Deducting tokens for reward (-5)...")
 		subtractTokensData := map[string]interface{}{
 			"amount":      -5,
 			"type":        "reward_claimed",
-			"description": "Получил награду: Посмотреть мультики",
+			"description": "Claimed reward: Watch cartoons",
 			"reward_id":   rewardID,
 		}
 		subtractTokensJSON, _ := json.Marshal(subtractTokensData)
@@ -253,8 +253,8 @@ func TestFullAPIWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 5, tokens.Tokens) // 10 - 5 = 5
 
-		// 11. Получение истории токенов ребенка
-		t.Log("11. 📜 Получение истории токенов ребенка...")
+		// 11. Get child token history
+		t.Log("11. 📜 Getting child token history...")
 		req = httptest.NewRequest(http.MethodGet, "/token-history/user_child_456", nil)
 		w = httptest.NewRecorder()
 		handleUserTokenHistory(w, req)
@@ -263,9 +263,9 @@ func TestFullAPIWorkflow(t *testing.T) {
 		var history []postgres.TokenHistory
 		err = json.Unmarshal(w.Body.Bytes(), &history)
 		require.NoError(t, err)
-		assert.Len(t, history, 2) // Два события: +10 и -5
+		assert.Len(t, history, 2) // Two events: +10 and -5
 
-		// Проверяем события в истории
+		// Check events in history
 		foundTaskComplete := false
 		foundRewardClaim := false
 		for _, h := range history {
@@ -278,11 +278,11 @@ func TestFullAPIWorkflow(t *testing.T) {
 				assert.Equal(t, rewardID, *h.RewardID)
 			}
 		}
-		assert.True(t, foundTaskComplete, "История должна содержать выполнение задания")
-		assert.True(t, foundRewardClaim, "История должна содержать получение награды")
+		assert.True(t, foundTaskComplete, "History should contain task completion")
+		assert.True(t, foundRewardClaim, "History should contain reward claim")
 
-		// 12. Получение истории токенов с пагинацией (limit=1)
-		t.Log("12. 📈 Получение истории токенов с пагинацией (limit=1)...")
+		// 12. Get token history with pagination (limit=1)
+		t.Log("12. 📈 Getting token history with pagination (limit=1)...")
 		req = httptest.NewRequest(http.MethodGet, "/token-history/user_child_456?limit=1&offset=0", nil)
 		w = httptest.NewRecorder()
 		handleUserTokenHistory(w, req)
@@ -293,8 +293,8 @@ func TestFullAPIWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, paginatedHistory, 1)
 
-		// 13. Список всех пользователей
-		t.Log("13. 👥 Список всех пользователей...")
+		// 13. List all users
+		t.Log("13. 👥 Listing all users...")
 		req = httptest.NewRequest(http.MethodGet, "/users", nil)
 		w = httptest.NewRecorder()
 		handleUsers(w, req)
@@ -303,10 +303,10 @@ func TestFullAPIWorkflow(t *testing.T) {
 		var allUsers []postgres.Users
 		err = json.Unmarshal(w.Body.Bytes(), &allUsers)
 		require.NoError(t, err)
-		assert.Len(t, allUsers, 2) // Родитель и ребенок
+		assert.Len(t, allUsers, 2) // Parent and child
 
-		// 14. Список всех семей
-		t.Log("14. 🏠 Список всех семей...")
+		// 14. List all families
+		t.Log("14. 🏠 Listing all families...")
 		req = httptest.NewRequest(http.MethodGet, "/families", nil)
 		w = httptest.NewRecorder()
 		handleFamilies(w, req)
@@ -318,8 +318,8 @@ func TestFullAPIWorkflow(t *testing.T) {
 		assert.Len(t, allFamilies, 1)
 		assert.Equal(t, "Test Family", allFamilies[0].Name)
 
-		// 15. Список всех токенов
-		t.Log("15. 💎 Список всех токенов...")
+		// 15. List all tokens
+		t.Log("15. 💎 Listing all tokens...")
 		req = httptest.NewRequest(http.MethodGet, "/tokens", nil)
 		w = httptest.NewRecorder()
 		handleTokens(w, req)
@@ -328,11 +328,11 @@ func TestFullAPIWorkflow(t *testing.T) {
 		var allTokens []postgres.Tokens
 		err = json.Unmarshal(w.Body.Bytes(), &allTokens)
 		require.NoError(t, err)
-		assert.Len(t, allTokens, 1) // Только у ребенка
+		assert.Len(t, allTokens, 1) // Only child has tokens
 		assert.Equal(t, 5, allTokens[0].Tokens)
 
-		// 16. Обновление пользователя (смена платформы)
-		t.Log("16. 📝 Обновление пользователя (смена платформы)...")
+		// 16. Update user (change platform)
+		t.Log("16. 📝 Updating user (changing platform)...")
 		updateData := map[string]interface{}{
 			"platform":     "web",
 			"input_state":  "waiting_for_task_name",
@@ -354,22 +354,22 @@ func TestFullAPIWorkflow(t *testing.T) {
 		assert.Equal(t, "web", updatedUser.Platform)
 		assert.Equal(t, "waiting_for_task_name", updatedUser.InputState)
 
-		t.Log("✅ Все интеграционные тесты прошли успешно!")
-		t.Logf("🔍 Результаты:")
-		t.Logf("- Семья создана с UID: %s", familyUID)
-		t.Logf("- Создано 2 пользователя (родитель и ребенок)")
-		t.Logf("- Создано 1 задание и 1 награда")
-		t.Logf("- Выполнены операции с токенами (начисление/списание)")
-		t.Logf("- Создана история операций с токенами")
-		t.Logf("- API поддерживает разные платформы (telegram, web)")
+		t.Log("✅ All integration tests passed successfully!")
+		t.Logf("🔍 Results:")
+		t.Logf("- Family created with UID: %s", familyUID)
+		t.Logf("- Created 2 users (parent and child)")
+		t.Logf("- Created 1 task and 1 reward")
+		t.Logf("- Performed token operations (add/subtract)")
+		t.Logf("- Created token operation history")
+		t.Logf("- API supports different platforms (telegram, web)")
 	})
 }
 
-// TestTokenOperations тестирует различные операции с токенами
+// TestTokenOperations tests various token operations
 func TestTokenOperations(t *testing.T) {
 	setupIntegrationDB(t)
 
-	// Создаем тестовые данные
+	// Create test data
 	family := &postgres.Families{
 		Name:            "Token Test Family",
 		UID:             "token_test_family",
@@ -396,7 +396,7 @@ func TestTokenOperations(t *testing.T) {
 		addData := map[string]interface{}{
 			"amount":      15,
 			"type":        "manual_adjustment",
-			"description": "Бонус от родителей",
+			"description": "Bonus from parents",
 		}
 		addJSON, _ := json.Marshal(addData)
 		req := httptest.NewRequest(http.MethodPost, "/tokens/user_token_child", bytes.NewBuffer(addJSON))
@@ -415,7 +415,7 @@ func TestTokenOperations(t *testing.T) {
 		subtractData := map[string]interface{}{
 			"amount":      -8,
 			"type":        "reward_claimed",
-			"description": "Потратил на игрушку",
+			"description": "Spent on toy",
 		}
 		subtractJSON, _ := json.Marshal(subtractData)
 		req := httptest.NewRequest(http.MethodPost, "/tokens/user_token_child", bytes.NewBuffer(subtractJSON))
@@ -434,7 +434,7 @@ func TestTokenOperations(t *testing.T) {
 		subtractData := map[string]interface{}{
 			"amount":      -10,
 			"type":        "reward_claimed",
-			"description": "Попытка потратить больше чем есть",
+			"description": "Attempt to spend more than available",
 		}
 		subtractJSON, _ := json.Marshal(subtractData)
 		req := httptest.NewRequest(http.MethodPost, "/tokens/user_token_child", bytes.NewBuffer(subtractJSON))

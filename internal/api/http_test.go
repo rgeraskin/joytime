@@ -787,7 +787,7 @@ func TestTokenEndpoints(t *testing.T) {
 		}{
 			Amount:      10,
 			Type:        "task_completed",
-			Description: "Выполнил задание",
+			Description: "Completed task",
 		}
 		body, _ := json.Marshal(addRequest)
 		req := httptest.NewRequest("POST", "/tokens/test_child_123", bytes.NewBuffer(body))
