@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"math/rand"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/postgres"
@@ -38,6 +40,8 @@ func SetupAPI(database *gorm.DB, _logger *log.Logger) *http.Server {
 	mux.HandleFunc("/families/", handleFamily)
 	mux.HandleFunc("/users", handleUsers)
 	mux.HandleFunc("/users/", handleUser)
+	mux.HandleFunc("/tokens", handleTokens)
+	mux.HandleFunc("/tokens/", handleUserTokens)
 
 	return &http.Server{
 		Addr:    ADDRESS,
@@ -192,12 +196,12 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Missing required fields: Name", http.StatusBadRequest)
 			return
 		}
-		if user.FamilyID == 0 {
-			http.Error(w, "Missing required fields: FamilyID", http.StatusBadRequest)
+		if user.FamilyUID == "" {
+			http.Error(w, "Missing required fields: FamilyUID", http.StatusBadRequest)
 			return
 		}
-		if user.UID == "" {
-			http.Error(w, "Missing required fields: UID", http.StatusBadRequest)
+		if user.TgID == 0 {
+			http.Error(w, "Missing required fields: TgID", http.StatusBadRequest)
 			return
 		}
 		if user.Role == "" {
@@ -212,9 +216,9 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// check if family exists
-		logger.Debug("Checking if family exists", "family_id", user.FamilyID)
+		logger.Debug("Checking if family exists", "family_uid", user.FamilyUID)
 		var family postgres.Families
-		if err := db.Where("id = ?", user.FamilyID).First(&family).Error; err != nil {
+		if err := db.Where("uid = ?", user.FamilyUID).First(&family).Error; err != nil {
 			http.Error(w, "Family not found", http.StatusBadRequest)
 			return
 		}
@@ -225,6 +229,19 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Create tokens for child
+		if user.Role == "child" {
+			tokens := postgres.Tokens{
+				TgID:   user.TgID,
+				Tokens: 0,
+			}
+			if err := db.Create(&tokens).Error; err != nil {
+				logger.Error("Failed to create tokens for child", "error", err)
+				// Don't fail the user creation, just log the error
+			}
+		}
+
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(user)
 
@@ -234,14 +251,19 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUser(w http.ResponseWriter, r *http.Request) {
-	UID := r.URL.Path[len("/users/"):]
+	tgIDStr := r.URL.Path[len("/users/"):]
+	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid TgID", http.StatusBadRequest)
+		return
+	}
 
 	switch r.Method {
 	case http.MethodGet:
 		// Get single user
-		logger.Debug("Getting user", "UID", UID)
+		logger.Debug("Getting user", "TgID", tgID)
 		var user postgres.Users
-		if err := db.Where("uid = ?", UID).First(&user).Error; err != nil {
+		if err := db.Where("tg_id = ?", tgID).First(&user).Error; err != nil {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
@@ -249,7 +271,7 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		// Decode user
-		logger.Debug("Updating user", "UID", UID)
+		logger.Debug("Updating user", "TgID", tgID)
 		var user postgres.Users
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -263,10 +285,10 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// check if family exists
-		var family postgres.Families
-		if user.FamilyID != 0 {
-			logger.Debug("Checking if family exists", "family_id", user.FamilyID)
-			if err := db.Where("id = ?", user.FamilyID).First(&family).Error; err != nil {
+		if user.FamilyUID != "" {
+			logger.Debug("Checking if family exists", "family_uid", user.FamilyUID)
+			var family postgres.Families
+			if err := db.Where("uid = ?", user.FamilyUID).First(&family).Error; err != nil {
 				http.Error(w, "Family not found", http.StatusBadRequest)
 				return
 			}
@@ -274,13 +296,13 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 
 		// check if user exists
 		var existingUser postgres.Users
-		if err := db.Where("uid = ?", UID).First(&existingUser).Error; err != nil {
+		if err := db.Where("tg_id = ?", tgID).First(&existingUser).Error; err != nil {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
 
 		// Update user
-		if err := db.Where("uid = ?", UID).Updates(&user).Error; err != nil {
+		if err := db.Where("tg_id = ?", tgID).Updates(&user).Error; err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -289,7 +311,7 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		// Check if user exists
 		var existingUser postgres.Users
-		err := db.Where("uid = ?", UID).First(&existingUser).Error
+		err := db.Where("tg_id = ?", tgID).First(&existingUser).Error
 		if err == gorm.ErrRecordNotFound {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
@@ -299,12 +321,91 @@ func handleUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Delete user
-		logger.Debug("Deleting user", "UID", UID)
-		if err := db.Where("uid = ?", UID).Delete(&postgres.Users{}).Error; err != nil {
+		logger.Debug("Deleting user", "TgID", tgID)
+		if err := db.Where("tg_id = ?", tgID).Delete(&postgres.Users{}).Error; err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleTokens(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// List all tokens
+		logger.Debug("Listing all tokens")
+		var tokens []postgres.Tokens
+		if err := db.Find(&tokens).Error; err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(tokens)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleUserTokens(w http.ResponseWriter, r *http.Request) {
+	tgIDStr := r.URL.Path[len("/tokens/"):]
+	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid TgID", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// Get user tokens
+		logger.Debug("Getting user tokens", "TgID", tgID)
+		var tokens postgres.Tokens
+		if err := db.Where("tg_id = ?", tgID).First(&tokens).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				http.Error(w, "User tokens not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		json.NewEncoder(w).Encode(tokens)
+
+	case http.MethodPut:
+		// Update user tokens
+		logger.Debug("Updating user tokens", "TgID", tgID)
+		var tokensUpdate postgres.Tokens
+		if err := json.NewDecoder(r.Body).Decode(&tokensUpdate); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// check if user tokens exist
+		var existingTokens postgres.Tokens
+		if err := db.Where("tg_id = ?", tgID).First(&existingTokens).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				http.Error(w, "User tokens not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// Update tokens
+		if err := db.Where("tg_id = ?", tgID).Updates(&tokensUpdate).Error; err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Get updated tokens
+		if err := db.Where("tg_id = ?", tgID).First(&existingTokens).Error; err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(existingTokens)
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -318,7 +419,7 @@ func handleTasks(w http.ResponseWriter, r *http.Request) {
 
 func handleTask(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("Handling task")
-	handleEntity(w, r, "tasks")
+	handleEntity(w, r)
 }
 
 func handleRewards(w http.ResponseWriter, r *http.Request) {
@@ -328,7 +429,7 @@ func handleRewards(w http.ResponseWriter, r *http.Request) {
 
 func handleReward(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("Handling reward")
-	handleEntity(w, r, "rewards")
+	handleEntity(w, r)
 }
 
 func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
@@ -363,6 +464,28 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+
+			// Validate required fields
+			if entity.FamilyUID == "" {
+				http.Error(w, "Missing required fields: FamilyUID", http.StatusBadRequest)
+				return
+			}
+			if entity.Name == "" {
+				http.Error(w, "Missing required fields: Name", http.StatusBadRequest)
+				return
+			}
+			if entity.Tokens <= 0 {
+				http.Error(w, "Missing required fields: Tokens (must be > 0)", http.StatusBadRequest)
+				return
+			}
+
+			// Check if family exists
+			var family postgres.Families
+			if err := db.Where("uid = ?", entity.FamilyUID).First(&family).Error; err != nil {
+				http.Error(w, "Family not found", http.StatusBadRequest)
+				return
+			}
+
 			if err := db.Create(&entity).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -376,6 +499,28 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+
+			// Validate required fields
+			if entity.FamilyUID == "" {
+				http.Error(w, "Missing required fields: FamilyUID", http.StatusBadRequest)
+				return
+			}
+			if entity.Name == "" {
+				http.Error(w, "Missing required fields: Name", http.StatusBadRequest)
+				return
+			}
+			if entity.Tokens <= 0 {
+				http.Error(w, "Missing required fields: Tokens (must be > 0)", http.StatusBadRequest)
+				return
+			}
+
+			// Check if family exists
+			var family postgres.Families
+			if err := db.Where("uid = ?", entity.FamilyUID).First(&family).Error; err != nil {
+				http.Error(w, "Family not found", http.StatusBadRequest)
+				return
+			}
+
 			if err := db.Create(&entity).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -393,12 +538,12 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 			return
 		}
 
-		// check if family id is provided
-		if entity.FamilyID == 0 {
-			http.Error(w, "Missing required fields: FamilyID", http.StatusBadRequest)
+		// check if family uid is provided
+		if entity.FamilyUID == "" {
+			http.Error(w, "Missing required fields: FamilyUID", http.StatusBadRequest)
 			return
 		}
-		logger = logger.With("family_id", entity.FamilyID)
+		logger = logger.With("family_uid", entity.FamilyUID)
 
 		// check if name is provided
 		if entity.Name == "" {
@@ -417,14 +562,14 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 		// check if family exists
 		logger.Debug("Checking if family exists")
 		var family postgres.Families
-		if err := db.Where("id = ?", entity.FamilyID).First(&family).Error; err != nil {
+		if err := db.Where("uid = ?", entity.FamilyUID).First(&family).Error; err != nil {
 			http.Error(w, "Family not found", http.StatusBadRequest)
 			return
 		}
 
 		// check if entity exists
 		logger.Debug("Checking if entity exists")
-		where := db.Where("family_id = ?", entity.FamilyID).Where("name = ?", entity.Name)
+		where := db.Where("family_uid = ?", entity.FamilyUID).Where("name = ?", entity.Name)
 		if entityType == "tasks" {
 			var existingEntity postgres.Tasks
 			if err := where.First(&existingEntity).Error; err != nil {
@@ -475,30 +620,30 @@ func handleEntities(w http.ResponseWriter, r *http.Request, entityType string) {
 	}
 }
 
-func handleEntity(w http.ResponseWriter, r *http.Request, entityType string) {
-	familyID := r.URL.Path[len("/"+entityType+"/"):]
+func handleEntity(w http.ResponseWriter, r *http.Request) {
+	familyUID := r.URL.Path[len("/"+r.URL.Path[1:strings.Index(r.URL.Path[1:], "/")+1]+"/"):]
 
 	switch r.Method {
 	case http.MethodGet:
 		// check if family exists
 		var family postgres.Families
-		if err := db.Where("id = ?", familyID).First(&family).Error; err != nil {
+		if err := db.Where("uid = ?", familyUID).First(&family).Error; err != nil {
 			http.Error(w, "Family not found", http.StatusBadRequest)
 			return
 		}
 
 		// List all entities in family
-		logger.Debug("Listing all entities", "entityType", entityType, "familyID", family.ID)
-		if entityType == "tasks" {
+		logger.Debug("Listing all entities", "entityType", r.URL.Path, "familyUID", family.UID)
+		if strings.Contains(r.URL.Path, "tasks") {
 			var entities []postgres.Tasks
-			if err := db.Where("family_id = ?", family.ID).Find(&entities).Error; err != nil {
+			if err := db.Where("family_uid = ?", family.UID).Find(&entities).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			json.NewEncoder(w).Encode(entities)
-		} else if entityType == "rewards" {
+		} else if strings.Contains(r.URL.Path, "rewards") {
 			var entities []postgres.Rewards
-			if err := db.Where("family_id = ?", family.ID).Find(&entities).Error; err != nil {
+			if err := db.Where("family_uid = ?", family.UID).Find(&entities).Error; err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
