@@ -1,0 +1,640 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+
+	"github.com/NicoNex/echotron/v3"
+	"gorm.io/gorm"
+)
+
+// Recursive type definition of the bot state function.
+type stateFn func(*echotron.Update) stateFn
+type bot struct {
+	echotron.API
+	ChatID int64
+	State  stateFn
+	DB     *DB
+	User   Users
+	Task   Tasks
+	Reward Rewards
+}
+
+func (b *bot) InternalError(fatal bool, logger *log.Logger, keyvals ...interface{}) stateFn {
+	b.SendMessage("Internal error", b.ChatID, nil)
+	if fatal {
+		logger.Fatal(keyvals[0].(string), keyvals[1:]...)
+	} else {
+		logger.Error(keyvals[0].(string), keyvals[1:]...)
+	}
+	return b.HandleStart
+}
+
+func newBot(chatID int64, db *DB, token string) echotron.Bot {
+	bot := &bot{
+		API:    echotron.NewAPI(token),
+		ChatID: chatID,
+		DB:     db,
+	}
+	// We set the default state to the bot.handleMessage method.
+	bot.State = bot.HandleStart
+	return bot
+}
+
+func (b *bot) Update(update *echotron.Update) {
+	// Here we execute the current state and set the next one.
+	b.State = b.State(update)
+}
+
+func (b *bot) HandleStart(update *echotron.Update) stateFn {
+	// entry point
+
+	logger = logger.With("chat_id", b.ChatID)
+	loggerStart := logger.With("function", "HandleStart")
+
+	// get user ID
+	if update.Message != nil {
+		b.User.TgID = update.Message.From.ID
+	} else if update.CallbackQuery != nil {
+		b.User.TgID = update.CallbackQuery.From.ID
+	} else {
+		return b.InternalError(true, loggerStart, "No message or callback query. Wtf?")
+	}
+
+	logger = logger.With("tg_id", b.User.TgID)
+	loggerStart = logger.With("function", "HandleStart")
+
+	// find user by ID in the database
+	err := b.DB.UserFind(&b.User)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// unknown error
+		return b.InternalError(false, loggerStart, "Error finding user in DB", "error", err)
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// user not found
+		b.User.Name = tgGetUsername(update.Message.From)
+		logger = logger.With("user_name", b.User.Name)
+		loggerStart = logger.With("function", "HandleStart")
+		loggerStart.Info("User not found")
+
+		loggerStart.Info("Select role to create...")
+		opts := echotron.MessageOptions{
+			ReplyMarkup: &echotron.InlineKeyboardMarkup{
+				InlineKeyboard: [][]echotron.InlineKeyboardButton{
+					{
+						{
+							Text:         "Я родитель",
+							CallbackData: "register_parent",
+						},
+						{
+							Text:         "Я ребенок",
+							CallbackData: "register_child",
+						},
+					},
+				},
+			},
+		}
+		b.SendMessage(
+			fmt.Sprintf("Вижу, мы еще не знакомы. Кто ты, %s? 😊", b.User.Name),
+			b.ChatID, &opts,
+		)
+		return b.HandleRegisterUser
+	}
+
+	// user found
+	logger = logger.
+		With("user_name", b.User.Name).
+		With("user_role", b.User.Role)
+	loggerStart = logger.With("function", "HandleStart")
+	loggerStart.Info("User found")
+
+	switch b.User.Role {
+	case "parent":
+		{
+			loggerStart.Debug("User role is parent")
+			return b.MenuParentShow(update)
+		}
+	case "child":
+		{
+			loggerStart.Debug("User role is child")
+			// TODO: handle child
+			// return b.MenuChild(update)
+			return b.HandleStart
+		}
+	}
+
+	return b.InternalError(false, loggerStart, "Unknown user role")
+}
+
+func (b *bot) HandleRegisterUser(update *echotron.Update) stateFn {
+	// user not found so register
+
+	logger := logger.With("function", "HandleRegisterUser")
+
+	opts := echotron.MessageOptions{}
+
+	callback := update.CallbackQuery.Data
+	switch callback {
+	case "register_parent":
+		{
+			b.User.Role = "parent"
+			opts.ReplyMarkup = &echotron.InlineKeyboardMarkup{
+				InlineKeyboard: [][]echotron.InlineKeyboardButton{
+					{
+						{
+							Text:         "Создать новую",
+							CallbackData: "register_family_create",
+						},
+						{
+							Text:         "Присоединиться",
+							CallbackData: "register_family_join",
+						},
+					},
+				},
+			}
+			b.SendMessage(
+				"Ты еще не добавлен в семью. Создать новую или присоединиться к существующей?",
+				b.ChatID, &opts,
+			)
+			return b.HandleRegisterParent
+		}
+	case "register_child":
+		{
+			b.User.Role = "child"
+			b.SendMessage(
+				"Ты еще не добавлен в семью. Попроси родителей зарегистрироваться и дать тебе код семьи. Его нужно ввести здесь",
+				b.ChatID,
+				&opts,
+			)
+			return b.HandleRegisterFamilyJoin
+		}
+	}
+	return b.InternalError(false, logger, "Unknown callback", "callback", callback)
+}
+
+func (b *bot) HandleRegisterParent(update *echotron.Update) stateFn {
+	// user wants to register as parent
+	// register => parent => family new or join?
+
+	logger := logger.With("function", "HandleRegisterParent")
+
+	callback := update.CallbackQuery.Data
+	switch callback {
+	case "register_family_create":
+		{
+			logger.Debug("callback: register_family_create")
+			err := b.DB.FamilyCreate(&b.User)
+			if err != nil {
+				logger.Error("Error creating family", "error", err)
+				b.SendMessage("Internal error", b.ChatID, nil)
+				return b.HandleStart
+			}
+
+			logger.Info("Sending family ID message...")
+			opts := echotron.MessageOptions{
+				ParseMode: echotron.MarkdownV2,
+			}
+			b.SendMessage(fmt.Sprintf(`ID твоей семьи *%s*
+
+Его нужно будет ввести остальным членам твоей семьи,
+когда они начнут пользоваться ботом`, b.User.FamilyUID),
+				b.ChatID, &opts,
+			)
+			return b.MenuParentShow(update)
+		}
+	case "register_family_join":
+		{
+			logger.Debug("callback: register_family_join")
+			b.SendMessage("Введи ID семьи, к которой хочешь присоединиться", b.ChatID, nil)
+			return b.HandleRegisterFamilyJoin
+		}
+	}
+	return b.InternalError(false, logger, "Unknown callback", "callback", callback)
+}
+
+func (b *bot) HandleRegisterFamilyJoin(update *echotron.Update) stateFn {
+	// user wants to join a family
+	// register => parent => family new or join? => join
+	// register => child => family join
+	logger := logger.With("function", "HandleRegisterFamilyJoin")
+
+	b.User.FamilyUID = update.Message.Text
+
+	err := b.DB.FamilyJoin(&b.User)
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		logger.Info("Family not found", "error", err)
+		b.SendMessage(
+			"Семьи с таким ID не найдено. Убедись, что ввел правильный ID.",
+			b.ChatID, nil,
+		)
+		return b.HandleRegisterFamilyJoin
+	}
+	if err != nil {
+		return b.InternalError(false, logger, "Error joining family", "error", err)
+	}
+
+	logger.Info("User joined family")
+	b.SendMessage("Добро пожаловать в семью! Начнем?", b.ChatID, nil)
+	switch b.User.Role {
+	case "parent":
+		{
+			return b.MenuParentShow(update)
+		}
+	case "child":
+		{
+			// TODO: handle child
+			// return b.handleChild
+			return b.HandleStart
+		}
+	}
+	return b.HandleStart
+}
+
+func (b *bot) MenuParentShow(update *echotron.Update) stateFn {
+	// parent menu
+
+	logger := logger.With("function", "MenuParentShow")
+
+	var messageStrings []string
+	// get user's children
+	logger.Info("Getting parent's children")
+	children, err := b.DB.UsersGet(b.User.FamilyUID, "child")
+	if err != nil {
+		return b.InternalError(false, logger, "Error getting parent's children", "error", err)
+	}
+	if len(children) == 0 {
+		logger.Info("No children found")
+		messageStrings = append(messageStrings, "У тебя еще нет детей, добавленных в бота 😔")
+	} else {
+		logger.Info("Children found", "num", len(children))
+		// get tokens for each child
+		logger.Info("Getting tokens for each child")
+		for _, child := range children {
+			tokens, err := b.DB.TokensGet(&child)
+			if err != nil {
+				logger.Error("Error getting tokens", "error", err)
+				b.SendMessage("Internal error", b.ChatID, nil)
+				return b.HandleStart
+			}
+			messageStrings = append(messageStrings, fmt.Sprintf("Баланс ребенка: %d 💎", tokens))
+		}
+	}
+	message := strings.Join(messageStrings, "\n")
+
+	opts := echotron.MessageOptions{
+		ReplyMarkup: &echotron.InlineKeyboardMarkup{
+			InlineKeyboard: [][]echotron.InlineKeyboardButton{
+				// {
+				// 	{
+				// 		Text:         "Проверить сделанное",
+				// 		CallbackData: "parent_tasks_check",
+				// 	},
+				// },
+				{
+					{
+						Text:         "Задания",
+						CallbackData: "parent_tasks",
+					},
+					{
+						Text:         "Награды",
+						CallbackData: "parent_rewards",
+					},
+				},
+				// {
+				// 	{
+				// 		Text:         "История",
+				// 		CallbackData: "parent_history",
+				// 	},
+				// },
+			},
+		},
+	}
+	b.SendMessage(message, b.ChatID, &opts)
+	return b.MenuParentHandle
+}
+
+func (b *bot) MenuParentHandle(update *echotron.Update) stateFn {
+	// handle what parent chose in parent menu
+
+	logger := logger.With("function", "MenuParentHandle")
+
+	callback := update.CallbackQuery.Data
+	switch callback {
+	case "parent_tasks":
+		{
+			logger.Debug("callback: parent_tasks")
+			return b.MenuTasksShow(update)
+		}
+	case "parent_rewards":
+		{
+			logger.Debug("callback: parent_rewards")
+			return b.MenuRewardsShow(update)
+		}
+	}
+	return b.InternalError(false, logger, "Unknown callback", "callback", callback)
+}
+
+func (b *bot) MenuRewardsShow(update *echotron.Update) stateFn {
+	// a menu for rewards
+
+	logger := logger.With("function", "MenuRewardsShow")
+
+	message, opts, err := b.menuEntities("reward")
+	if err != nil {
+		return b.InternalError(false, logger, "Error getting rewards", "error", err)
+	}
+	b.SendMessage(message, b.ChatID, opts)
+	// TODO: handle rewards
+	return b.HandleStart
+	// return b.MenuRewardsHandle
+}
+
+func (b *bot) menuEntities(entity string) (string, *echotron.MessageOptions, error) {
+	// a menu for tasks or rewards
+	// entities are tasks or rewards
+	// entity is "task" or "reward"
+
+	logger := logger.
+		With("function", "menuEntities").
+		With("entity", entity)
+
+	// differences for tasks and rewards
+	var messageEntities string
+	var messageNoEntitiesYet string
+	var EntitiesGet func(*Users, *[]Entities) error
+	switch entity {
+	case "task":
+		// convert tasks to entities
+		EntitiesGet = func(user *Users, entities *[]Entities) error {
+			tasks := []Tasks{}
+			err := b.DB.TasksGet(user, &tasks)
+			if err != nil {
+				return err
+			}
+			for _, task := range tasks {
+				*entities = append(*entities, Entities{
+					Name:   task.Name,
+					Tokens: task.Tokens,
+				})
+			}
+			return nil
+		}
+		messageEntities = "Задания"
+		messageNoEntitiesYet = "У тебя еще нет добавленных заданий 😔"
+	case "reward":
+		// convert rewards to entities
+		EntitiesGet = func(user *Users, entities *[]Entities) error {
+			rewards := []Rewards{}
+			err := b.DB.RewardsGet(user, &rewards)
+			if err != nil {
+				return err
+			}
+			for _, reward := range rewards {
+				*entities = append(*entities, Entities{
+					Name:   reward.Name,
+					Tokens: reward.Tokens,
+				})
+			}
+			return nil
+		}
+		messageEntities = "Награды"
+		messageNoEntitiesYet = "У тебя еще нет добавленных наград 😔"
+	}
+
+	logger.Info("Getting entities...")
+	var entities []Entities
+	err := EntitiesGet(&b.User, &entities)
+	if err != nil {
+		return "", nil, err
+	}
+
+	logger.Info("Entities found", "num", len(entities))
+	messageStrings := []string{messageEntities + ":", ""}
+	if len(entities) == 0 {
+		logger.Info("No entities found")
+		messageStrings = append(messageStrings, messageNoEntitiesYet)
+	}
+
+	for i, entity := range entities {
+		messageStrings = append(
+			messageStrings,
+			fmt.Sprintf("%d. %s: %d 💎", i+1, entity.Name, entity.Tokens),
+		)
+	}
+	message := strings.Join(messageStrings, "\n")
+
+	opts := echotron.MessageOptions{
+		ReplyMarkup: &echotron.InlineKeyboardMarkup{
+			InlineKeyboard: [][]echotron.InlineKeyboardButton{
+				{
+					{
+						Text:         "Добавить",
+						CallbackData: fmt.Sprintf("parent_%s_add", entity),
+					},
+					{
+						Text:         "Удалить",
+						CallbackData: fmt.Sprintf("parent_%s_delete", entity),
+					},
+				},
+				{
+					{
+						Text:         "Изменить награду",
+						CallbackData: fmt.Sprintf("parent_%s_edit", entity),
+					},
+					{
+						Text:         "Назад",
+						CallbackData: fmt.Sprintf("parent_%s_back", entity),
+					},
+				},
+			},
+		},
+	}
+	return message, &opts, nil
+}
+
+func (b *bot) MenuTasksShow(update *echotron.Update) stateFn {
+	// a menu for tasks
+
+	logger := logger.With("function", "MenuTasksShow")
+
+	message, opts, err := b.menuEntities("task")
+	if err != nil {
+		return b.InternalError(false, logger, "Error getting tasks", "error", err)
+	}
+	b.SendMessage(message, b.ChatID, opts)
+	return b.HandleMenuTasks
+}
+
+func (b *bot) HandleMenuTasks(update *echotron.Update) stateFn {
+	logger := logger.With("function", "HandleMenuTasks")
+
+	switch update.CallbackQuery.Data {
+	case "parent_task_add":
+		{
+			logger.Debug("callback: parent_task_add")
+			b.SendMessage("Введи название задания", b.ChatID, nil)
+			return b.HandleMenuTasksAddName
+		}
+	case "parent_task_edit":
+		{
+			logger.Debug("callback: parent_task_edit")
+			b.SendMessage("Введи номер задания, которое хочешь изменить", b.ChatID, nil)
+			return b.HandleMenuTasksEditId
+		}
+	case "parent_task_delete":
+		{
+			logger.Debug("callback: parent_task_delete")
+			b.SendMessage("Введи номер задания, которое хочешь удалить", b.ChatID, nil)
+			return b.HandleMenuTasksDelete
+		}
+	case "parent_task_back":
+		{
+			logger.Debug("callback: parent_task_back")
+			return b.MenuParentShow(update)
+		}
+	}
+	return b.InternalError(false, logger, "Unknown callback", "callback", update.CallbackQuery.Data)
+}
+
+func (b *bot) HandleMenuTasksEditId(update *echotron.Update) stateFn {
+	logger := logger.With("function", "HandleMenuTasksEditId")
+
+	text := update.Message.Text
+	logger = logger.With("task_id", text)
+	logger.Info("Handling task ID")
+	taskID, err := strconv.Atoi(text)
+	if err != nil {
+		logger.Error("Error converting task ID to int", "error", err)
+		b.SendMessage("Номер задания должен быть числом", b.ChatID, nil)
+		return b.HandleMenuTasksEditId
+	}
+
+	// get all tasks
+	var tasks []Tasks
+	err = b.DB.TasksGet(&b.User, &tasks)
+	if err != nil {
+		return b.InternalError(false, logger, "Error getting tasks", "error", err)
+	}
+
+	// get task by ID
+	if taskID < 1 || taskID > len(tasks) {
+		logger.Error("Task ID out of range")
+		b.SendMessage("Такого номера задания нет. Попробуй еще раз.", b.ChatID, nil)
+		return b.HandleMenuTasksEditId
+	}
+	b.Task = tasks[taskID-1]
+
+	b.SendMessage("Сколько токенов за это задание?", b.ChatID, nil)
+	return b.HandleMenuTasksEditTokens
+}
+
+func (b *bot) HandleMenuTasksEditTokens(update *echotron.Update) stateFn {
+	logger := logger.With("function", "HandleMenuTasksEditTokens")
+
+	text := update.Message.Text
+	logger = logger.
+		With("task_id", b.Task.ID).
+		With("task_name", b.Task.Name).
+		With("tokens", text)
+	logger.Info("Handling task tokens")
+	tokens, err := strconv.Atoi(text)
+	if err != nil {
+		logger.Error("Error converting tokens to int", "error", err)
+		b.SendMessage("Количество токенов должно быть числом", b.ChatID, nil)
+		return b.HandleMenuTasksEditTokens
+	}
+
+	b.Task.Tokens = tokens
+	err = b.DB.TasksEdit(&b.Task)
+	if err != nil {
+		return b.InternalError(false, logger, "Error editing task", "error", err)
+	}
+
+	logger.Info("Task edited")
+	b.SendMessage("Задание изменено", b.ChatID, nil)
+	return b.MenuTasksShow(update)
+}
+
+func (b *bot) HandleMenuTasksDelete(update *echotron.Update) stateFn {
+	logger := logger.With("function", "HandleMenuTasksDelete")
+
+	text := update.Message.Text
+	logger = logger.With("task_id", text)
+	logger.Info("Handling task ID")
+	taskID, err := strconv.Atoi(text)
+	if err != nil {
+		logger.Error("Error converting task ID to int", "error", err)
+		b.SendMessage("Номер задания должен быть числом", b.ChatID, nil)
+		return b.HandleMenuTasksDelete
+	}
+
+	// get all tasks
+	var tasks []Tasks
+	err = b.DB.TasksGet(&b.User, &tasks)
+	if err != nil {
+		return b.InternalError(false, logger, "Error getting tasks", "error", err)
+	}
+
+	// get task by ID
+	if taskID < 1 || taskID > len(tasks) {
+		logger.Error("Task ID out of range", "task_id", taskID)
+		b.SendMessage("Такого номера задания нет. Попробуй еще раз.", b.ChatID, nil)
+		return b.HandleMenuTasksDelete
+	}
+	task := tasks[taskID-1]
+	logger = logger.With("task_name", task.Name)
+
+	logger.Info("Deleting task")
+	err = b.DB.TasksDelete(&task)
+	if err != nil {
+		return b.InternalError(false, logger, "Error deleting task", "error", err)
+	}
+
+	logger.Info("Task deleted")
+	b.SendMessage("Задание удалено", b.ChatID, nil)
+	return b.MenuTasksShow(update)
+}
+
+func (b *bot) HandleMenuTasksAddName(update *echotron.Update) stateFn {
+	logger := logger.With("function", "HandleMenuTasksAddName")
+
+	b.Task = Tasks{}
+	b.Task.Name = update.Message.Text
+	logger = logger.With("task_name", b.Task.Name)
+	logger.Info("Handling task name")
+
+	b.SendMessage("Сколько токенов за это задание?", b.ChatID, nil)
+	return b.HandleMenuTasksAddTokens
+}
+
+func (b *bot) HandleMenuTasksAddTokens(update *echotron.Update) stateFn {
+	logger := logger.With("function", "HandleMenuTasksAddTokens")
+
+	text := update.Message.Text
+	logger = logger.
+		With("task_name", b.Task.Name).
+		With("tokens", text)
+	logger.Info("Handling task tokens")
+	tokens, err := strconv.Atoi(text)
+	if err != nil {
+		logger.Error("Error converting tokens to int", "error", err)
+		b.SendMessage("Количество токенов должно быть числом", b.ChatID, nil)
+		return b.HandleMenuTasksAddTokens
+	}
+
+	b.Task.Tokens = tokens
+	b.Task.FamilyUID = b.User.FamilyUID
+	logger = logger.With("task_family_uid", b.Task.FamilyUID)
+
+	logger.Info("Adding task")
+	err = b.DB.TasksAdd(&b.Task)
+	if err != nil {
+		return b.InternalError(false, logger, "Error adding task", "error", err)
+	}
+
+	logger.Info("Task added")
+	b.SendMessage("Задание добавлено", b.ChatID, nil)
+	return b.MenuTasksShow(update)
+}
