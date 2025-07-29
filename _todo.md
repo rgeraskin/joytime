@@ -11,6 +11,11 @@
 1. Добавить inline клавиатуру с цифрами для выбора задач и наград
 
 В дальнейшем:
+1. Add Database Indexes
+1. Use Connection Pooling: Configure GORM connection pool settings.
+1. Add Caching: Consider Redis for frequently accessed family/user data.
+1. Rate limiting
+1. Pagination for Large Datasets
 1. Описание задач и наград
 1. i18n
 1. telegram miniApp

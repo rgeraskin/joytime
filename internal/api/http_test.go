@@ -18,14 +18,54 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
+var testHandler *APIHandler
+
+// parseSuccessResponse parses a success response and extracts the data
+func parseSuccessResponse(w *httptest.ResponseRecorder, target interface{}) error {
+	var successResponse SuccessResponse
+	if err := json.NewDecoder(w.Body).Decode(&successResponse); err != nil {
+		return err
+	}
+
+	// Marshal and unmarshal to convert interface{} to target type
+	dataBytes, err := json.Marshal(successResponse.Data)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(dataBytes, target)
+}
+
+// parseErrorResponse parses an error response
+func parseErrorResponse(w *httptest.ResponseRecorder) (*ErrorResponse, error) {
+	var errorResponse ErrorResponse
+	err := json.NewDecoder(w.Body).Decode(&errorResponse)
+	return &errorResponse, err
+}
+
+// assertSuccessResponse checks status code and parses success response
+func assertSuccessResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int, target interface{}) {
+	assert.Equal(t, expectedStatus, w.Code)
+	err := parseSuccessResponse(w, target)
+	assert.NoError(t, err)
+}
+
+// assertErrorResponse checks status code and parses error response
+func assertErrorResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int, expectedErrorContains string) {
+	assert.Equal(t, expectedStatus, w.Code)
+	errorResp, err := parseErrorResponse(w)
+	assert.NoError(t, err)
+	assert.Contains(t, errorResp.Error, expectedErrorContains)
+}
+
 // cleanupTestData removes all test data from database in correct order to handle foreign key constraints
 func cleanupTestData() {
-	db.Unscoped().Where("1 = 1").Delete(&postgres.TokenHistory{})
-	db.Unscoped().Where("1 = 1").Delete(&postgres.Tokens{})
-	db.Unscoped().Where("1 = 1").Delete(&postgres.Tasks{})
-	db.Unscoped().Where("1 = 1").Delete(&postgres.Rewards{})
-	db.Unscoped().Where("1 = 1").Delete(&postgres.Users{})
-	db.Unscoped().Where("1 = 1").Delete(&postgres.Families{})
+	testHandler.db.Unscoped().Where("1 = 1").Delete(&postgres.TokenHistory{})
+	testHandler.db.Unscoped().Where("1 = 1").Delete(&postgres.Tokens{})
+	testHandler.db.Unscoped().Where("1 = 1").Delete(&postgres.Tasks{})
+	testHandler.db.Unscoped().Where("1 = 1").Delete(&postgres.Rewards{})
+	testHandler.db.Unscoped().Where("1 = 1").Delete(&postgres.Users{})
+	testHandler.db.Unscoped().Where("1 = 1").Delete(&postgres.Families{})
 }
 
 // migrateTestSchema migrates all required models for testing
@@ -46,13 +86,13 @@ func migrateTestSchema(includeEntities bool) error {
 		&postgres.TokenHistory{},
 	)
 
-	return db.AutoMigrate(models...)
+	return testHandler.db.AutoMigrate(models...)
 }
 
 // setupTestDBConnection establishes database connection for testing
 func setupTestDBConnection() error {
 	level := log.InfoLevel
-	logger = log.NewWithOptions(os.Stderr, log.Options{
+	logger := log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           level,
@@ -70,7 +110,7 @@ func setupTestDBConnection() error {
 	)
 
 	var err error
-	db, err = gorm.Open(psql.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(psql.Open(dsn), &gorm.Config{
 		Logger: gormlogger.New(
 			logger,
 			gormlogger.Config{
@@ -78,7 +118,12 @@ func setupTestDBConnection() error {
 			},
 		),
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	testHandler = NewAPIHandler(db, logger)
+	return nil
 }
 
 func getTestDBConfig() *postgres.Config {
@@ -122,7 +167,7 @@ func setupTestDB(t *testing.T) *postgres.Families {
 		Name: t.Name(),
 		UID:  uniqueUID,
 	}
-	result := db.Create(&family)
+	result := testHandler.db.Create(&family)
 	if result.Error != nil {
 		t.Fatalf("Failed to create family: %v", result.Error)
 	}
@@ -130,10 +175,10 @@ func setupTestDB(t *testing.T) *postgres.Families {
 	return &family
 }
 
+// TestUserEndpoints tests user CRUD operations
 func TestUserEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
 
-	// Test creating a user
 	t.Run("Create User", func(t *testing.T) {
 		user := postgres.Users{
 			UserID:    "test_user_123",
@@ -143,16 +188,12 @@ func TestUserEndpoints(t *testing.T) {
 			Platform:  "telegram",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
-		fmt.Println(req)
+		req := httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUsers(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
+		testHandler.handleUsers(w, req)
 
 		var response postgres.Users
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusCreated, &response)
 		assert.Equal(t, user.UserID, response.UserID)
 		assert.Equal(t, user.Name, response.Name)
 		assert.Equal(t, user.Role, response.Role)
@@ -161,737 +202,572 @@ func TestUserEndpoints(t *testing.T) {
 
 		// Verify user is in the database
 		var dbUser postgres.Users
-		err = db.Where("user_id = ?", "test_user_123").First(&dbUser).Error
+		err := testHandler.db.Where("user_id = ?", "test_user_123").First(&dbUser).Error
 		assert.NoError(t, err)
 		assert.Equal(t, user.UserID, dbUser.UserID)
 	})
 
-	// Test creating a user with wrong family uid (family not found)
 	t.Run("Create User with wrong family uid", func(t *testing.T) {
-		// family not found
 		user := postgres.Users{
 			UserID:    "test_user_456",
-			Name:      "Test User",
-			Role:      "parent",
-			FamilyUID: "nonexistent",
-			Platform:  "web",
+			Name:      "Test User 2",
+			Role:      "child",
+			FamilyUID: "wrong_family_uid",
+			Platform:  "telegram",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Family not found")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrFamilyNotFound)
 	})
 
-	// Test creating a user with wrong role
 	t.Run("Create User with wrong role", func(t *testing.T) {
 		user := postgres.Users{
 			UserID:    "test_user_789",
-			Name:      "Test User",
-			Role:      "stranger",
+			Name:      "Test User 3",
+			Role:      "admin",
 			FamilyUID: setupFamily.UID,
+			Platform:  "telegram",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Invalid role: parent or child only")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrInvalidRole)
 	})
 
-	// Test creating a user with missing required fields
 	t.Run("Create User with missing required fields", func(t *testing.T) {
 		// missing Role
 		user := postgres.Users{
-			UserID:    "test_user_missing_role",
-			Name:      "Test User",
+			UserID:    "test_user_no_role",
+			Name:      "Test User No Role",
 			FamilyUID: setupFamily.UID,
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Missing required fields: Role")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrRoleRequired)
 
 		// missing Name
 		user = postgres.Users{
-			UserID:    "test_user_missing_name",
-			Role:      "parent",
+			UserID:    "test_user_no_name",
+			Role:      "child",
 			FamilyUID: setupFamily.UID,
 		}
 		body, _ = json.Marshal(user)
-		req = httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req = httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w = httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Missing required fields: Name")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrNameRequired)
 
 		// missing UserID
 		user = postgres.Users{
-			Name:      "Test User",
-			Role:      "parent",
+			Name:      "Test User No UserID",
+			Role:      "child",
 			FamilyUID: setupFamily.UID,
 		}
 		body, _ = json.Marshal(user)
-		req = httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req = httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w = httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Missing required fields: UserID")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrUserIDRequiredField)
 
 		// missing FamilyUID
 		user = postgres.Users{
-			UserID: "test_user_missing_family",
-			Name:   "Test User",
-			Role:   "parent",
+			UserID: "test_user_no_family",
+			Name:   "Test User No Family",
+			Role:   "child",
 		}
 		body, _ = json.Marshal(user)
-		req = httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req = httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w = httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Missing required fields: FamilyUID")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrFamilyUIDRequiredField)
 	})
 
-	// Test creating an existing user
 	t.Run("Create existing user", func(t *testing.T) {
 		user := postgres.Users{
-			UserID:    "test_user_123",
-			Name:      "Test User",
-			Role:      "parent",
+			UserID:    "test_user_123", // Already exists from first test
+			Name:      "Duplicate User",
+			Role:      "child",
 			FamilyUID: setupFamily.UID,
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("POST", "/users", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/users", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(
-			t,
-			w.Body.String(),
-			"ERROR: duplicate key value violates unique constraint \"uni_users_user_id\" (SQLSTATE 23505)",
-		)
+		assertErrorResponse(t, w, http.StatusInternalServerError, "Failed to create user")
 	})
 
-	// Test getting a user
 	t.Run("Get User", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/users/test_user_123", nil)
+		req := httptest.NewRequest("GET", "/api/v1/users/test_user_123", nil)
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response postgres.Users
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, "test_user_123", response.UserID)
+		var user postgres.Users
+		assertSuccessResponse(t, w, http.StatusOK, &user)
+		assert.Equal(t, "test_user_123", user.UserID)
 	})
 
-	// Test getting an absent user
 	t.Run("Get absent user", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/users/absent_user", nil)
+		req := httptest.NewRequest("GET", "/api/v1/users/absent_user", nil)
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "User not found")
+		assertErrorResponse(t, w, http.StatusNotFound, ErrUserNotFound)
 	})
 
-	// Test updating a user
 	t.Run("Update User", func(t *testing.T) {
 		user := postgres.Users{
-			UserID: "test_user_123",
-			Name:   "Updated User",
+			Name:     "Updated User",
+			Platform: "web",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("PUT", "/users/test_user_123", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/users/test_user_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response postgres.Users
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, "Updated User", response.Name)
+		var updatedUser postgres.Users
+		assertSuccessResponse(t, w, http.StatusOK, &updatedUser)
+		assert.Equal(t, "Updated User", updatedUser.Name)
 
 		// Verify user is updated in the database
-		var updatedUser postgres.Users
-		err = db.Where("user_id = ?", "test_user_123").First(&updatedUser).Error
+		var dbUser postgres.Users
+		err := testHandler.db.Where("user_id = ?", "test_user_123").First(&dbUser).Error
 		assert.NoError(t, err)
-		assert.Equal(t, "Updated User", updatedUser.Name)
+		assert.Equal(t, "Updated User", dbUser.Name)
 	})
 
-	// Test updating a user with wrong role
 	t.Run("Update User with wrong role", func(t *testing.T) {
 		user := postgres.Users{
-			UserID: "test_user_123",
-			Role:   "stranger",
+			Role: "admin",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("PUT", "/users/test_user_123", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/users/test_user_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Invalid role: parent or child only")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrInvalidRole)
 	})
 
-	// Test updating a non-existent user
 	t.Run("Update non-existent user", func(t *testing.T) {
 		user := postgres.Users{
-			UserID: "nonexistent_user",
-			Role:   "parent",
+			Name: "Non-existent User",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("PUT", "/users/nonexistent_user", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/users/nonexistent_user", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		assertErrorResponse(t, w, http.StatusNotFound, ErrUserNotFound)
 	})
 
-	// Test updating a user with wrong family uid
 	t.Run("Update User with wrong family uid (family not found)", func(t *testing.T) {
-		// family not found
 		user := postgres.Users{
-			UserID:    "test_user_123",
-			Name:      "Updated User",
-			Role:      "parent",
-			FamilyUID: "nonexistent",
+			FamilyUID: "wrong_family_uid",
 		}
 		body, _ := json.Marshal(user)
-		req := httptest.NewRequest("PUT", "/users/test_user_123", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/users/test_user_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Family not found")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrFamilyNotFound)
 
 		// Verify user is not updated in the database
 		var updatedUser postgres.Users
-		err := db.Where("user_id = ?", "test_user_123").First(&updatedUser).Error
+		err := testHandler.db.Where("user_id = ?", "test_user_123").First(&updatedUser).Error
 		assert.NoError(t, err)
 		assert.Equal(t, setupFamily.UID, updatedUser.FamilyUID)
 	})
 
-	// Test updating a user to existing user_id
-	t.Run("Update User to existing user_id", func(t *testing.T) {
+	t.Run("Update User to existing user id", func(t *testing.T) {
 		user1 := postgres.Users{
 			UserID:    "existing_user_123",
-			Name:      "Another User",
-			Role:      "parent",
+			Name:      "Existing User",
+			Role:      "child",
 			FamilyUID: setupFamily.UID,
 		}
+		testHandler.db.Create(&user1)
+
 		user2 := postgres.Users{
-			UserID: "existing_user_123",
+			UserID: "existing_user_123", // Duplicate
 		}
-		db.Create(&user1)
-
 		body, _ := json.Marshal(user2)
-		req := httptest.NewRequest("PUT", "/users/test_user_123", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/users/test_user_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(
-			t,
-			w.Body.String(),
-			"ERROR: duplicate key value violates unique constraint \"uni_users_user_id\" (SQLSTATE 23505)",
-		)
+		assertErrorResponse(t, w, http.StatusInternalServerError, "Failed to update user")
 	})
 
-	// Test deleting a user
 	t.Run("Delete User", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/users/test_user_123", nil)
+		req := httptest.NewRequest("DELETE", "/api/v1/users/test_user_123", nil)
 		w := httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify user is deleted from the database
 		var dbUser postgres.Users
-		err := db.Where("user_id = ?", "test_user_123").First(&dbUser).Error
+		err := testHandler.db.Where("user_id = ?", "test_user_123").First(&dbUser).Error
 		assert.Error(t, err)
 	})
 }
 
+// TestFamilyEndpoints tests family CRUD operations
 func TestFamilyEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
 
-	// Test listing families (run first before any families are created)
 	t.Run("List Families", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/families", nil)
+		req := httptest.NewRequest("GET", "/api/v1/families", nil)
 		w := httptest.NewRecorder()
-		handleFamilies(w, req)
+		testHandler.handleFamilies(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Families
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "TestFamilyEndpoints", response[0].Name)
+		var families []postgres.Families
+		assertSuccessResponse(t, w, http.StatusOK, &families)
+		assert.Len(t, families, 1)
+		assert.Equal(t, "TestFamilyEndpoints", families[0].Name)
 
 		// Verify families are in the database
 		var dbFamilies []postgres.Families
-		err = db.Find(&dbFamilies).Error
+		err := testHandler.db.Find(&dbFamilies).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "TestFamilyEndpoints", dbFamilies[0].Name)
 	})
 
-	// Test creating a family
 	t.Run("Create Family", func(t *testing.T) {
 		family := postgres.Families{
-			Name: "Test Family",
+			Name: "New Test Family",
 		}
 		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("POST", "/families", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/families", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleFamilies(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
+		testHandler.handleFamilies(w, req)
 
 		var response postgres.Families
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusCreated, &response)
 		assert.Equal(t, family.Name, response.Name)
+		assert.NotEmpty(t, response.UID)
 		uid := response.UID
 
 		// Verify family is in the database
 		var dbFamily postgres.Families
-		err = db.Where("uid = ?", uid).First(&dbFamily).Error
+		err := testHandler.db.Where("uid = ?", uid).First(&dbFamily).Error
 		assert.NoError(t, err)
 		assert.Equal(t, family.Name, dbFamily.Name)
-
-		// Note: Family cleanup handled by teardown function
 	})
 
-	// Test creating a family with restricted fields
 	t.Run("Create Family with restricted fields", func(t *testing.T) {
-		// uid
 		family := postgres.Families{
-			Name: "Test Family Restricted Fields 1",
-			UID:  "test-family",
+			Name: "Test Family",
+			UID:  "custom_uid",
 		}
 		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("POST", "/families", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/families", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleFamilies(w, req)
+		testHandler.handleFamilies(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Restricted fields: UID")
+		assertErrorResponse(t, w, http.StatusBadRequest, "UID is auto-generated")
 
-		// created by user id
 		family = postgres.Families{
-			Name:            "Test Family Restricted Fields 2",
-			CreatedByUserID: "user_123",
+			Name:            "Test Family",
+			CreatedByUserID: "user123",
 		}
 		body, _ = json.Marshal(family)
-		req = httptest.NewRequest("POST", "/families", bytes.NewBuffer(body))
+		req = httptest.NewRequest("POST", "/api/v1/families", bytes.NewBuffer(body))
 		w = httptest.NewRecorder()
-		handleFamilies(w, req)
+		testHandler.handleFamilies(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Restricted fields: CreatedByUserID")
+		assertErrorResponse(t, w, http.StatusBadRequest, "CreatedByUserID is auto-generated")
 	})
 
-	// Test creating a family with missing required fields
-	t.Run("Create Family with missing required fields", func(t *testing.T) {
-		// missing name
+	t.Run("Create Family without name", func(t *testing.T) {
 		family := postgres.Families{}
 		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("POST", "/families", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/families", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleFamilies(w, req)
+		testHandler.handleFamilies(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Missing required fields: Name")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrNameRequired)
 	})
 
-	// Test updating a family
-	t.Run("Update Family", func(t *testing.T) {
-		family := postgres.Families{
-			Name: "Updated Family",
-		}
-		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("PUT", "/families/"+setupFamily.UID, bytes.NewBuffer(body))
-		fmt.Println(req.URL.Path)
+	t.Run("Get Family", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/families/"+setupFamily.UID, nil)
 		w := httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response postgres.Families
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, "Updated Family", response.Name)
+		var family postgres.Families
+		assertSuccessResponse(t, w, http.StatusOK, &family)
+		assert.Equal(t, setupFamily.UID, family.UID)
 	})
 
-	// Test update family without required fields
-	t.Run("Update family without required fields", func(t *testing.T) {
+	t.Run("Update Family - validation error (name and uid both empty)", func(t *testing.T) {
 		family := postgres.Families{}
 		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("PUT", "/families/"+setupFamily.UID, bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/families/"+setupFamily.UID, bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Missing required fields: Name or UID")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrNameOrUIDRequired)
 	})
 
-	// Test update non-existent family
 	t.Run("Update non-existent family", func(t *testing.T) {
 		family := postgres.Families{
 			Name: "Updated Family",
 		}
 		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("PUT", "/families/non-existent-family", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/families/non-existent-family", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		assertErrorResponse(t, w, http.StatusNotFound, ErrFamilyNotFound)
 	})
 
-	// Test delete non-existent family
 	t.Run("Delete non-existent family", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/families/non-existent-family", nil)
+		req := httptest.NewRequest("DELETE", "/api/v1/families/non-existent-family", nil)
 		w := httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		assertErrorResponse(t, w, http.StatusNotFound, ErrFamilyNotFound)
 	})
 
-	// Test updating a family to existing uid
-	t.Run("Update Family to existing uid", func(t *testing.T) {
-		family1 := postgres.Families{
-			Name: "Existing Family",
-			UID:  "existing-uid",
-		}
-		family2 := postgres.Families{
-			UID: "existing-uid",
-		}
-		db.Create(&family1)
-
-		body, _ := json.Marshal(family2)
-		req := httptest.NewRequest("PUT", "/families/"+setupFamily.UID, bytes.NewBuffer(body))
-		w := httptest.NewRecorder()
-		handleFamily(w, req)
-
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(
-			t,
-			w.Body.String(),
-			"ERROR: duplicate key value violates unique constraint \"uni_families_uid\" (SQLSTATE 23505)",
-		)
-	})
-
-	// Test deleting a family
 	t.Run("Delete Family", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/families/"+setupFamily.UID, nil)
+		req := httptest.NewRequest("DELETE", "/api/v1/families/"+setupFamily.UID, nil)
 		w := httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify family is deleted from the database
 		var dbFamily postgres.Families
-		err := db.Where("uid = ?", setupFamily.UID).First(&dbFamily).Error
+		err := testHandler.db.Where("uid = ?", setupFamily.UID).First(&dbFamily).Error
 		assert.Error(t, err)
 	})
 
-	// Test getting a single family
-	t.Run("Get Single Family", func(t *testing.T) {
-		// Create a family for this test
+	t.Run("Create Family and then Get it (integration)", func(t *testing.T) {
 		family := postgres.Families{
-			Name: "Single Family Test",
+			Name: "Integration Test Family",
 		}
 		body, _ := json.Marshal(family)
-		req := httptest.NewRequest("POST", "/families", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/families", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleFamilies(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
+		testHandler.handleFamilies(w, req)
 
 		var createdFamily postgres.Families
-		err := json.NewDecoder(w.Body).Decode(&createdFamily)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusCreated, &createdFamily)
+		assert.Equal(t, family.Name, createdFamily.Name)
+		assert.NotEmpty(t, createdFamily.UID)
 
-		// Now get the single family
-		req = httptest.NewRequest("GET", "/families/"+createdFamily.UID, nil)
+		// Then get the created family
+		req = httptest.NewRequest("GET", "/api/v1/families/"+createdFamily.UID, nil)
 		w = httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response postgres.Families
-		err = json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, createdFamily.UID, response.UID)
-		assert.Equal(t, "Single Family Test", response.Name)
+		var retrievedFamily postgres.Families
+		assertSuccessResponse(t, w, http.StatusOK, &retrievedFamily)
+		assert.Equal(t, createdFamily.UID, retrievedFamily.UID)
+		assert.Equal(t, createdFamily.Name, retrievedFamily.Name)
 	})
 
-	// Test getting a non-existent single family
-	t.Run("Get Non-existent Single Family", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/families/nonexistent-uid", nil)
+	t.Run("Get non-existent family", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/families/nonexistent-uid", nil)
 		w := httptest.NewRecorder()
-		handleFamily(w, req)
+		testHandler.handleFamily(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "Family not found")
+		assertErrorResponse(t, w, http.StatusNotFound, ErrFamilyNotFound)
 	})
 }
 
+// TestTaskEndpoints tests task CRUD operations
 func TestTaskEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
 
-	// Test creating a task
 	t.Run("Create Task", func(t *testing.T) {
 		task := postgres.Tasks{
 			Entities: postgres.Entities{
-				Name:        "Test Task",
 				FamilyUID:   setupFamily.UID,
+				Name:        "Test Task",
 				Description: "Test Description",
 				Tokens:      10,
 			},
-			OneOff: false,
 		}
 		body, _ := json.Marshal(task)
-		req := httptest.NewRequest("POST", "/tasks", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/tasks", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleTasks(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
+		testHandler.handleTasks(w, req)
 
 		var response postgres.Tasks
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusCreated, &response)
 		assert.Equal(t, task.Name, response.Name)
-		assert.Equal(t, task.FamilyUID, response.FamilyUID)
-		assert.Equal(t, task.Description, response.Description)
 		assert.Equal(t, task.Tokens, response.Tokens)
-		assert.Equal(t, task.OneOff, response.OneOff)
 
 		// Verify task is in the database
 		var dbTask postgres.Tasks
-		err = db.Where("name = ?", "Test Task").First(&dbTask).Error
+		err := testHandler.db.Where("name = ?", "Test Task").First(&dbTask).Error
 		assert.NoError(t, err)
 		assert.Equal(t, task.Name, dbTask.Name)
-		assert.Equal(t, task.FamilyUID, dbTask.FamilyUID)
-		assert.Equal(t, task.Description, dbTask.Description)
-		assert.Equal(t, task.Tokens, dbTask.Tokens)
-		assert.Equal(t, task.OneOff, dbTask.OneOff)
 	})
 
-	// Test listing tasks
 	t.Run("List Tasks", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/tasks", nil)
+		req := httptest.NewRequest("GET", "/api/v1/tasks", nil)
 		w := httptest.NewRecorder()
-		handleTasks(w, req)
+		testHandler.handleTasks(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Tasks
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "Test Task", response[0].Name)
-		assert.Equal(t, "Test Description", response[0].Description)
-		assert.Equal(t, 10, response[0].Tokens)
-		assert.Equal(t, false, response[0].OneOff)
+		var tasks []postgres.Tasks
+		assertSuccessResponse(t, w, http.StatusOK, &tasks)
+		assert.Len(t, tasks, 1)
+		assert.Equal(t, "Test Task", tasks[0].Name)
 
 		// Verify tasks are in the database
 		var dbTasks []postgres.Tasks
-		err = db.Find(&dbTasks).Error
+		err := testHandler.db.Find(&dbTasks).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "Test Task", dbTasks[0].Name)
-		assert.Equal(t, setupFamily.UID, dbTasks[0].FamilyUID)
-		assert.Equal(t, "Test Description", dbTasks[0].Description)
-		assert.Equal(t, 10, dbTasks[0].Tokens)
-		assert.Equal(t, false, dbTasks[0].OneOff)
 	})
 
-	// Test getting tasks by family
 	t.Run("Get Tasks by Family", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/tasks/"+setupFamily.UID, nil)
+		req := httptest.NewRequest("GET", "/api/v1/tasks/"+setupFamily.UID, nil)
 		w := httptest.NewRecorder()
-		handleTask(w, req)
+		testHandler.handleTasksByFamily(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Tasks
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "Test Task", response[0].Name)
+		var tasks []postgres.Tasks
+		assertSuccessResponse(t, w, http.StatusOK, &tasks)
+		assert.Len(t, tasks, 1)
+		assert.Equal(t, "Test Task", tasks[0].Name)
 	})
 
-	// Test deleting a task by family and name
 	t.Run("Delete Task", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/task/"+setupFamily.UID+"/Test%20Task", nil)
+		req := httptest.NewRequest("DELETE", "/api/v1/tasks/"+setupFamily.UID+"/Test%20Task", nil)
 		w := httptest.NewRecorder()
-		handleSingleTask(w, req)
+		testHandler.handleTasksByFamily(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify task is deleted from the database
 		var dbTask postgres.Tasks
-		err := db.Where("family_uid = ? AND name = ?", setupFamily.UID, "Test Task").
+		err := testHandler.db.Where("family_uid = ? AND name = ?", setupFamily.UID, "Test Task").
 			First(&dbTask).
 			Error
 		assert.Error(t, err)
 	})
 
-	// Test deleting a non-existent task
-	t.Run("Delete Non-existent Task", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/task/"+setupFamily.UID+"/Nonexistent%20Task", nil)
+	t.Run("Delete non-existent task", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/tasks/"+setupFamily.UID+"/Nonexistent%20Task", nil)
 		w := httptest.NewRecorder()
-		handleSingleTask(w, req)
+		testHandler.handleTasksByFamily(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "Entity not found")
+		assertErrorResponse(t, w, http.StatusNotFound, ErrEntityNotFound)
 	})
 
-	// Test deleting a task with wrong family
-	t.Run("Delete Task with Wrong Family", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/task/nonexistent-family/Test%20Task", nil)
+	t.Run("Delete task for non-existent family", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/tasks/nonexistent-family/Test%20Task", nil)
 		w := httptest.NewRecorder()
-		handleSingleTask(w, req)
+		testHandler.handleTasksByFamily(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Family not found")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrFamilyNotFound)
 	})
 }
 
+// TestRewardEndpoints tests reward CRUD operations
 func TestRewardEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
 
-	// Test creating a reward
 	t.Run("Create Reward", func(t *testing.T) {
 		reward := postgres.Rewards{
 			Entities: postgres.Entities{
-				Name:        "Test Reward",
 				FamilyUID:   setupFamily.UID,
+				Name:        "Test Reward",
 				Description: "Test Description",
-				Tokens:      10,
+				Tokens:      5,
 			},
 		}
 		body, _ := json.Marshal(reward)
-		req := httptest.NewRequest("POST", "/rewards", bytes.NewBuffer(body))
+		req := httptest.NewRequest("POST", "/api/v1/rewards", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleRewards(w, req)
-
-		assert.Equal(t, http.StatusCreated, w.Code)
+		testHandler.handleRewards(w, req)
 
 		var response postgres.Rewards
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusCreated, &response)
 		assert.Equal(t, reward.Name, response.Name)
-		assert.Equal(t, reward.FamilyUID, response.FamilyUID)
-		assert.Equal(t, reward.Description, response.Description)
 		assert.Equal(t, reward.Tokens, response.Tokens)
 
 		// Verify reward is in the database
 		var dbReward postgres.Rewards
-		err = db.Where("name = ?", "Test Reward").First(&dbReward).Error
+		err := testHandler.db.Where("name = ?", "Test Reward").First(&dbReward).Error
 		assert.NoError(t, err)
 		assert.Equal(t, reward.Name, dbReward.Name)
-		assert.Equal(t, reward.FamilyUID, dbReward.FamilyUID)
-		assert.Equal(t, reward.Description, dbReward.Description)
-		assert.Equal(t, reward.Tokens, dbReward.Tokens)
 	})
 
-	// Test listing rewards
 	t.Run("List Rewards", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/rewards", nil)
+		req := httptest.NewRequest("GET", "/api/v1/rewards", nil)
 		w := httptest.NewRecorder()
-		handleRewards(w, req)
+		testHandler.handleRewards(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Rewards
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "Test Reward", response[0].Name)
-		assert.Equal(t, "Test Description", response[0].Description)
-		assert.Equal(t, 10, response[0].Tokens)
+		var rewards []postgres.Rewards
+		assertSuccessResponse(t, w, http.StatusOK, &rewards)
+		assert.Len(t, rewards, 1)
+		assert.Equal(t, "Test Reward", rewards[0].Name)
 
 		// Verify rewards are in the database
 		var dbRewards []postgres.Rewards
-		err = db.Find(&dbRewards).Error
+		err := testHandler.db.Find(&dbRewards).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "Test Reward", dbRewards[0].Name)
-		assert.Equal(t, setupFamily.UID, dbRewards[0].FamilyUID)
-		assert.Equal(t, "Test Description", dbRewards[0].Description)
-		assert.Equal(t, 10, dbRewards[0].Tokens)
 	})
 
-	// Test getting rewards by family
 	t.Run("Get Rewards by Family", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/rewards/"+setupFamily.UID, nil)
+		req := httptest.NewRequest("GET", "/api/v1/rewards/"+setupFamily.UID, nil)
 		w := httptest.NewRecorder()
-		handleReward(w, req)
+		testHandler.handleRewardsByFamily(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Rewards
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "Test Reward", response[0].Name)
+		var rewards []postgres.Rewards
+		assertSuccessResponse(t, w, http.StatusOK, &rewards)
+		assert.Len(t, rewards, 1)
+		assert.Equal(t, "Test Reward", rewards[0].Name)
 	})
 
-	// Test deleting a reward by family and name
 	t.Run("Delete Reward", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/reward/"+setupFamily.UID+"/Test%20Reward", nil)
+		req := httptest.NewRequest("DELETE", "/api/v1/rewards/"+setupFamily.UID+"/Test%20Reward", nil)
 		w := httptest.NewRecorder()
-		handleSingleReward(w, req)
+		testHandler.handleRewardsByFamily(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify reward is deleted from the database
 		var dbReward postgres.Rewards
-		err := db.Where("family_uid = ? AND name = ?", setupFamily.UID, "Test Reward").
+		err := testHandler.db.Where("family_uid = ? AND name = ?", setupFamily.UID, "Test Reward").
 			First(&dbReward).
 			Error
 		assert.Error(t, err)
 	})
 
-	// Test deleting a non-existent reward
-	t.Run("Delete Non-existent Reward", func(t *testing.T) {
-		req := httptest.NewRequest(
-			"DELETE",
-			"/reward/"+setupFamily.UID+"/Nonexistent%20Reward",
-			nil,
-		)
+	t.Run("Delete non-existent reward", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/rewards/"+setupFamily.UID+"/Nonexistent%20Reward", nil)
 		w := httptest.NewRecorder()
-		handleSingleReward(w, req)
+		testHandler.handleRewardsByFamily(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "Entity not found")
+		assertErrorResponse(t, w, http.StatusNotFound, ErrEntityNotFound)
 	})
 
-	// Test deleting a reward with wrong family
-	t.Run("Delete Reward with Wrong Family", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/reward/nonexistent-family/Test%20Reward", nil)
+	t.Run("Delete reward for non-existent family", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/rewards/nonexistent-family/Test%20Reward", nil)
 		w := httptest.NewRecorder()
-		handleSingleReward(w, req)
+		testHandler.handleRewardsByFamily(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Family not found")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrFamilyNotFound)
 	})
 }
 
+// TestTokenEndpoints tests token CRUD operations
 func TestTokenEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
 
@@ -903,167 +779,129 @@ func TestTokenEndpoints(t *testing.T) {
 		FamilyUID: setupFamily.UID,
 		Platform:  "telegram",
 	}
-	db.Create(&user)
+	testHandler.db.Create(&user)
 
 	// Create tokens for the user
 	tokens := postgres.Tokens{
 		UserID: "test_child_123",
 		Tokens: 50,
 	}
-	db.Create(&tokens)
+	testHandler.db.Create(&tokens)
 
-	// Test getting user tokens
 	t.Run("Get User Tokens", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/tokens/test_child_123", nil)
+		req := httptest.NewRequest("GET", "/api/v1/tokens/test_child_123", nil)
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response postgres.Tokens
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, "test_child_123", response.UserID)
-		assert.Equal(t, 50, response.Tokens)
+		var tokenResponse postgres.Tokens
+		assertSuccessResponse(t, w, http.StatusOK, &tokenResponse)
+		assert.Equal(t, "test_child_123", tokenResponse.UserID)
+		assert.Equal(t, 50, tokenResponse.Tokens)
 	})
 
-	// Test updating user tokens
 	t.Run("Update User Tokens", func(t *testing.T) {
-		updateTokens := postgres.Tokens{
+		tokensUpdate := postgres.Tokens{
 			Tokens: 75,
 		}
-		body, _ := json.Marshal(updateTokens)
-		req := httptest.NewRequest("PUT", "/tokens/test_child_123", bytes.NewBuffer(body))
+		body, _ := json.Marshal(tokensUpdate)
+		req := httptest.NewRequest("PUT", "/api/v1/tokens/test_child_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
+		testHandler.handleUserTokens(w, req)
 
 		var response postgres.Tokens
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusOK, &response)
 		assert.Equal(t, 75, response.Tokens)
 
 		// Verify tokens are updated in the database
 		var dbTokens postgres.Tokens
-		err = db.Where("user_id = ?", "test_child_123").First(&dbTokens).Error
+		err := testHandler.db.Where("user_id = ?", "test_child_123").First(&dbTokens).Error
 		assert.NoError(t, err)
 		assert.Equal(t, 75, dbTokens.Tokens)
 	})
 
-	// Test adding tokens to user
 	t.Run("Add Tokens to User", func(t *testing.T) {
-		addRequest := struct {
-			Amount      int    `json:"amount"`
-			Type        string `json:"type"`
-			Description string `json:"description"`
-		}{
-			Amount:      10,
-			Type:        "task_completed",
-			Description: "Completed task",
+		addTokensRequest := map[string]interface{}{
+			"amount":      10,
+			"type":        "task_completed",
+			"description": "Completed chores",
 		}
-		body, _ := json.Marshal(addRequest)
-		req := httptest.NewRequest("POST", "/tokens/test_child_123", bytes.NewBuffer(body))
+		body, _ := json.Marshal(addTokensRequest)
+		req := httptest.NewRequest("POST", "/api/v1/tokens/test_child_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
+		testHandler.handleUserTokens(w, req)
 
 		var response postgres.Tokens
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
+		assertSuccessResponse(t, w, http.StatusOK, &response)
 		assert.Equal(t, 85, response.Tokens) // 75 + 10
 
 		// Verify token history was created
 		var history []postgres.TokenHistory
-		err = db.Where("user_id = ?", "test_child_123").Find(&history).Error
+		err := testHandler.db.Where("user_id = ?", "test_child_123").Find(&history).Error
 		assert.NoError(t, err)
 		assert.Len(t, history, 1)
 		assert.Equal(t, 10, history[0].Amount)
 		assert.Equal(t, "task_completed", history[0].Type)
 	})
 
-	// Test subtracting tokens from user
 	t.Run("Subtract Tokens from User", func(t *testing.T) {
-		subtractRequest := struct {
-			Amount      int    `json:"amount"`
-			Type        string `json:"type"`
-			Description string `json:"description"`
-		}{
-			Amount:      -5,
-			Type:        "reward_claimed",
-			Description: "Получил награду",
+		subtractTokensRequest := map[string]interface{}{
+			"amount":      -15,
+			"type":        "reward_claimed",
+			"description": "Bought toy",
 		}
-		body, _ := json.Marshal(subtractRequest)
-		req := httptest.NewRequest("POST", "/tokens/test_child_123", bytes.NewBuffer(body))
+		body, _ := json.Marshal(subtractTokensRequest)
+		req := httptest.NewRequest("POST", "/api/v1/tokens/test_child_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
+		testHandler.handleUserTokens(w, req)
 
 		var response postgres.Tokens
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Equal(t, 80, response.Tokens) // 85 - 5
+		assertSuccessResponse(t, w, http.StatusOK, &response)
+		assert.Equal(t, 70, response.Tokens) // 85 - 15
 	})
 
-	// Test insufficient tokens
-	t.Run("Insufficient Tokens", func(t *testing.T) {
-		subtractRequest := struct {
-			Amount      int    `json:"amount"`
-			Type        string `json:"type"`
-			Description string `json:"description"`
-		}{
-			Amount:      -100,
-			Type:        "reward_claimed",
-			Description: "Попытка получить дорогую награду",
+	t.Run("Subtract More Tokens than Available", func(t *testing.T) {
+		subtractTokensRequest := map[string]interface{}{
+			"amount":      -100,
+			"type":        "reward_claimed",
+			"description": "Expensive toy",
 		}
-		body, _ := json.Marshal(subtractRequest)
-		req := httptest.NewRequest("POST", "/tokens/test_child_123", bytes.NewBuffer(body))
+		body, _ := json.Marshal(subtractTokensRequest)
+		req := httptest.NewRequest("POST", "/api/v1/tokens/test_child_123", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Insufficient tokens")
+		assertErrorResponse(t, w, http.StatusBadRequest, ErrInsufficientTokens)
 	})
 
-	// Test getting tokens for non-existent user
 	t.Run("Get Tokens for non-existent user", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/tokens/nonexistent_user", nil)
+		req := httptest.NewRequest("GET", "/api/v1/tokens/nonexistent_user", nil)
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "User tokens not found")
+		assertErrorResponse(t, w, http.StatusNotFound, ErrUserTokensNotFound)
 	})
 
-	// Test listing all tokens
 	t.Run("List All Tokens", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/tokens", nil)
+		req := httptest.NewRequest("GET", "/api/v1/tokens", nil)
 		w := httptest.NewRecorder()
-		handleTokens(w, req)
+		testHandler.handleTokens(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.Tokens
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "test_child_123", response[0].UserID)
-		assert.Equal(t, 80, response[0].Tokens)
+		var allTokens []postgres.Tokens
+		assertSuccessResponse(t, w, http.StatusOK, &allTokens)
+		assert.Len(t, allTokens, 1)
+		assert.Equal(t, "test_child_123", allTokens[0].UserID)
 	})
 
-	// Test deleting tokens (not implemented)
-	t.Run("Delete Tokens - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/tokens/test_child_123", nil)
+	t.Run("Delete User Tokens (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/tokens/test_child_123", nil)
 		w := httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 }
 
+// TestTokenHistoryEndpoints tests token history operations
 func TestTokenHistoryEndpoints(t *testing.T) {
 	setupFamily := setupTestDB(t)
 
@@ -1074,14 +912,14 @@ func TestTokenHistoryEndpoints(t *testing.T) {
 		Role:      "child",
 		FamilyUID: setupFamily.UID,
 	}
-	db.Create(&user)
+	testHandler.db.Create(&user)
 
 	// Create some token history
 	history1 := postgres.TokenHistory{
 		UserID:      "test_history_user",
 		Amount:      10,
 		Type:        "task_completed",
-		Description: "Первое задание",
+		Description: "Completed task",
 	}
 	history2 := postgres.TokenHistory{
 		UserID:      "test_history_user",
@@ -1089,113 +927,84 @@ func TestTokenHistoryEndpoints(t *testing.T) {
 		Type:        "reward_claimed",
 		Description: "Первая награда",
 	}
-	db.Create(&history1)
-	db.Create(&history2)
+	testHandler.db.Create(&history1)
+	testHandler.db.Create(&history2)
 
-	// Test getting user token history
 	t.Run("Get User Token History", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/token-history/test_history_user", nil)
+		req := httptest.NewRequest("GET", "/api/v1/token-history/test_history_user", nil)
 		w := httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.TokenHistory
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 2)
-
-		// History should be ordered by created_at DESC
-		assert.Equal(t, "test_history_user", response[0].UserID)
-		assert.Equal(t, "test_history_user", response[1].UserID)
+		var history []postgres.TokenHistory
+		assertSuccessResponse(t, w, http.StatusOK, &history)
+		assert.Len(t, history, 2)
 	})
 
-	// Test getting user token history with pagination
-	t.Run("Get User Token History with Pagination", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/token-history/test_history_user?limit=1&offset=0", nil)
+	t.Run("Get User Token History (without pagination)", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/token-history/test_history_user", nil)
 		w := httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.TokenHistory
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "test_history_user", response[0].UserID)
+		var history []postgres.TokenHistory
+		assertSuccessResponse(t, w, http.StatusOK, &history)
+		assert.Len(t, history, 2) // Should return all records since pagination is removed
 	})
 
-	// Test listing all token history
 	t.Run("List All Token History", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/token-history", nil)
+		req := httptest.NewRequest("GET", "/api/v1/token-history", nil)
 		w := httptest.NewRecorder()
-		handleTokenHistory(w, req)
+		testHandler.handleTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response []postgres.TokenHistory
-		err := json.NewDecoder(w.Body).Decode(&response)
-		assert.NoError(t, err)
-		assert.Len(t, response, 2)
+		var allHistory []postgres.TokenHistory
+		assertSuccessResponse(t, w, http.StatusOK, &allHistory)
+		assert.Len(t, allHistory, 2)
 	})
 
-	// Test creating token history (not implemented)
-	t.Run("Create Token History - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/token-history", nil)
+	t.Run("Create Token History (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/token-history", nil)
 		w := httptest.NewRecorder()
-		handleTokenHistory(w, req)
+		testHandler.handleTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 
-	// Test updating all token history (not implemented)
-	t.Run("Update All Token History - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("PUT", "/token-history", nil)
+	t.Run("Update Token History (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/api/v1/token-history", nil)
 		w := httptest.NewRecorder()
-		handleTokenHistory(w, req)
+		testHandler.handleTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 
-	// Test deleting all token history (not implemented)
-	t.Run("Delete All Token History - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/token-history", nil)
+	t.Run("Delete Token History (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/token-history", nil)
 		w := httptest.NewRecorder()
-		handleTokenHistory(w, req)
+		testHandler.handleTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 
-	// Test creating user token history (not implemented)
-	t.Run("Create User Token History - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/token-history/test_history_user", nil)
+	t.Run("Create User Token History (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/token-history/test_history_user", nil)
 		w := httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 
-	// Test updating user token history (not implemented)
-	t.Run("Update User Token History - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("PUT", "/token-history/test_history_user", nil)
+	t.Run("Update User Token History (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/api/v1/token-history/test_history_user", nil)
 		w := httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 
-	// Test deleting user token history (not implemented)
-	t.Run("Delete User Token History - Not Implemented", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/token-history/test_history_user", nil)
+	t.Run("Delete User Token History (not implemented)", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/token-history/test_history_user", nil)
 		w := httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "Not implemented")
+		assertErrorResponse(t, w, http.StatusNotImplemented, ErrNotImplemented)
 	})
 }

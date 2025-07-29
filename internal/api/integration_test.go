@@ -43,14 +43,14 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"name": "Test Family",
 		}
 		familyJSON, _ := json.Marshal(familyData)
-		req := httptest.NewRequest(http.MethodPost, "/families", bytes.NewBuffer(familyJSON))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/families", bytes.NewBuffer(familyJSON))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
-		handleFamilies(w, req)
+		testHandler.handleFamilies(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var family postgres.Families
-		err := json.Unmarshal(w.Body.Bytes(), &family)
+		err := parseSuccessResponse(w, &family)
 		require.NoError(t, err)
 		require.NotEmpty(t, family.UID)
 		familyUID := family.UID
@@ -66,14 +66,14 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"platform":   "telegram",
 		}
 		parentJSON, _ := json.Marshal(parentData)
-		req = httptest.NewRequest(http.MethodPost, "/users", bytes.NewBuffer(parentJSON))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/users", bytes.NewBuffer(parentJSON))
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var parent postgres.Users
-		err = json.Unmarshal(w.Body.Bytes(), &parent)
+		err = parseSuccessResponse(w, &parent)
 		require.NoError(t, err)
 		assert.Equal(t, "user_parent_123", parent.UserID)
 		assert.Equal(t, "Test Parent", parent.Name)
@@ -89,14 +89,14 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"platform":   "telegram",
 		}
 		childJSON, _ := json.Marshal(childData)
-		req = httptest.NewRequest(http.MethodPost, "/users", bytes.NewBuffer(childJSON))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/users", bytes.NewBuffer(childJSON))
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var child postgres.Users
-		err = json.Unmarshal(w.Body.Bytes(), &child)
+		err = parseSuccessResponse(w, &child)
 		require.NoError(t, err)
 		assert.Equal(t, "user_child_456", child.UserID)
 		assert.Equal(t, "Test Child", child.Name)
@@ -104,13 +104,13 @@ func TestFullAPIWorkflow(t *testing.T) {
 
 		// 4. Check child tokens (should be automatically created)
 		t.Log("4. ⚡ Checking child tokens...")
-		req = httptest.NewRequest(http.MethodGet, "/tokens/user_child_456", nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/tokens/user_child_456", nil)
 		w = httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var tokens postgres.Tokens
-		err = json.Unmarshal(w.Body.Bytes(), &tokens)
+		err = parseSuccessResponse(w, &tokens)
 		require.NoError(t, err)
 		assert.Equal(t, "user_child_456", tokens.UserID)
 		assert.Equal(t, 0, tokens.Tokens) // Initial value
@@ -124,14 +124,14 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"description": "Tidy up and vacuum",
 		}
 		taskJSON, _ := json.Marshal(taskData)
-		req = httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewBuffer(taskJSON))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBuffer(taskJSON))
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleEntities(w, req, "tasks")
+		testHandler.handleTasks(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var task postgres.Tasks
-		err = json.Unmarshal(w.Body.Bytes(), &task)
+		err = parseSuccessResponse(w, &task)
 		require.NoError(t, err)
 		assert.Equal(t, "Clean the room", task.Name)
 		assert.Equal(t, 10, task.Tokens)
@@ -146,14 +146,14 @@ func TestFullAPIWorkflow(t *testing.T) {
 			"description": "15 minutes of cartoons",
 		}
 		rewardJSON, _ := json.Marshal(rewardData)
-		req = httptest.NewRequest(http.MethodPost, "/rewards", bytes.NewBuffer(rewardJSON))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/rewards", bytes.NewBuffer(rewardJSON))
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleEntities(w, req, "rewards")
+		testHandler.handleRewards(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		var reward postgres.Rewards
-		err = json.Unmarshal(w.Body.Bytes(), &reward)
+		err = parseSuccessResponse(w, &reward)
 		require.NoError(t, err)
 		assert.Equal(t, "Watch cartoons", reward.Name)
 		assert.Equal(t, 5, reward.Tokens)
@@ -161,26 +161,26 @@ func TestFullAPIWorkflow(t *testing.T) {
 
 		// 7. Get all family tasks
 		t.Log("7. 📊 Getting all family tasks...")
-		req = httptest.NewRequest(http.MethodGet, "/tasks/"+familyUID, nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/tasks/"+familyUID, nil)
 		w = httptest.NewRecorder()
-		handleEntity(w, req)
+		testHandler.handleTasksByFamily(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var tasks []postgres.Tasks
-		err = json.Unmarshal(w.Body.Bytes(), &tasks)
+		err = parseSuccessResponse(w, &tasks)
 		require.NoError(t, err)
 		assert.Len(t, tasks, 1)
 		assert.Equal(t, "Clean the room", tasks[0].Name)
 
 		// 8. Get all family rewards
 		t.Log("8. 🏆 Getting all family rewards...")
-		req = httptest.NewRequest(http.MethodGet, "/rewards/"+familyUID, nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/rewards/"+familyUID, nil)
 		w = httptest.NewRecorder()
-		handleEntity(w, req)
+		testHandler.handleRewardsByFamily(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var rewards []postgres.Rewards
-		err = json.Unmarshal(w.Body.Bytes(), &rewards)
+		err = parseSuccessResponse(w, &rewards)
 		require.NoError(t, err)
 		assert.Len(t, rewards, 1)
 		assert.Equal(t, "Watch cartoons", rewards[0].Name)
@@ -196,15 +196,15 @@ func TestFullAPIWorkflow(t *testing.T) {
 		addTokensJSON, _ := json.Marshal(addTokensData)
 		req = httptest.NewRequest(
 			http.MethodPost,
-			"/tokens/user_child_456",
+			"/api/v1/tokens/user_child_456",
 			bytes.NewBuffer(addTokensJSON),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		err = json.Unmarshal(w.Body.Bytes(), &tokens)
+		err = parseSuccessResponse(w, &tokens)
 		require.NoError(t, err)
 		assert.Equal(t, 10, tokens.Tokens)
 
@@ -219,27 +219,27 @@ func TestFullAPIWorkflow(t *testing.T) {
 		subtractTokensJSON, _ := json.Marshal(subtractTokensData)
 		req = httptest.NewRequest(
 			http.MethodPost,
-			"/tokens/user_child_456",
+			"/api/v1/tokens/user_child_456",
 			bytes.NewBuffer(subtractTokensJSON),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleUserTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		err = json.Unmarshal(w.Body.Bytes(), &tokens)
+		err = parseSuccessResponse(w, &tokens)
 		require.NoError(t, err)
 		assert.Equal(t, 5, tokens.Tokens) // 10 - 5 = 5
 
 		// 11. Get child token history
 		t.Log("11. 📜 Getting child token history...")
-		req = httptest.NewRequest(http.MethodGet, "/token-history/user_child_456", nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/token-history/user_child_456", nil)
 		w = httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var history []postgres.TokenHistory
-		err = json.Unmarshal(w.Body.Bytes(), &history)
+		err = parseSuccessResponse(w, &history)
 		require.NoError(t, err)
 		assert.Len(t, history, 2) // Two events: +10 and -5
 
@@ -259,56 +259,56 @@ func TestFullAPIWorkflow(t *testing.T) {
 		assert.True(t, foundTaskComplete, "History should contain task completion")
 		assert.True(t, foundRewardClaim, "History should contain reward claim")
 
-		// 12. Get token history with pagination (limit=1)
-		t.Log("12. 📈 Getting token history with pagination (limit=1)...")
+		// 12. Get token history (all records since pagination removed)
+		t.Log("12. 📈 Getting token history (all records)...")
 		req = httptest.NewRequest(
 			http.MethodGet,
-			"/token-history/user_child_456?limit=1&offset=0",
+			"/api/v1/token-history/user_child_456",
 			nil,
 		)
 		w = httptest.NewRecorder()
-		handleUserTokenHistory(w, req)
+		testHandler.handleUserTokenHistory(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var paginatedHistory []postgres.TokenHistory
-		err = json.Unmarshal(w.Body.Bytes(), &paginatedHistory)
+		var allHistory []postgres.TokenHistory
+		err = parseSuccessResponse(w, &allHistory)
 		require.NoError(t, err)
-		assert.Len(t, paginatedHistory, 1)
+		assert.Len(t, allHistory, 2) // Should return all records since pagination is removed
 
 		// 13. List all users
 		t.Log("13. 👥 Listing all users...")
-		req = httptest.NewRequest(http.MethodGet, "/users", nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 		w = httptest.NewRecorder()
-		handleUsers(w, req)
+		testHandler.handleUsers(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var allUsers []postgres.Users
-		err = json.Unmarshal(w.Body.Bytes(), &allUsers)
+		err = parseSuccessResponse(w, &allUsers)
 		require.NoError(t, err)
 		assert.Len(t, allUsers, 2) // Parent and child
 
 		// 14. List all families
 		t.Log("14. 🏠 Listing all families...")
-		req = httptest.NewRequest(http.MethodGet, "/families", nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/families", nil)
 		w = httptest.NewRecorder()
-		handleFamilies(w, req)
+		testHandler.handleFamilies(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var allFamilies []postgres.Families
-		err = json.Unmarshal(w.Body.Bytes(), &allFamilies)
+		err = parseSuccessResponse(w, &allFamilies)
 		require.NoError(t, err)
 		assert.Len(t, allFamilies, 1)
 		assert.Equal(t, "Test Family", allFamilies[0].Name)
 
 		// 15. List all tokens
 		t.Log("15. 💎 Listing all tokens...")
-		req = httptest.NewRequest(http.MethodGet, "/tokens", nil)
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/tokens", nil)
 		w = httptest.NewRecorder()
-		handleTokens(w, req)
+		testHandler.handleTokens(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var allTokens []postgres.Tokens
-		err = json.Unmarshal(w.Body.Bytes(), &allTokens)
+		err = parseSuccessResponse(w, &allTokens)
 		require.NoError(t, err)
 		assert.Len(t, allTokens, 1) // Only child has tokens
 		assert.Equal(t, 5, allTokens[0].Tokens)
@@ -326,16 +326,16 @@ func TestFullAPIWorkflow(t *testing.T) {
 		updateJSON, _ := json.Marshal(updateData)
 		req = httptest.NewRequest(
 			http.MethodPut,
-			"/users/user_child_456",
+			"/api/v1/users/user_child_456",
 			bytes.NewBuffer(updateJSON),
 		)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
-		handleUser(w, req)
+		testHandler.handleUser(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var updatedUser postgres.Users
-		err = json.Unmarshal(w.Body.Bytes(), &updatedUser)
+		err = parseSuccessResponse(w, &updatedUser)
 		require.NoError(t, err)
 		assert.Equal(t, "web", updatedUser.Platform)
 		assert.Equal(t, "waiting_for_task_name", updatedUser.InputState)
