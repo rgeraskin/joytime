@@ -84,7 +84,6 @@ func (h *APIHandler) respondSuccess(w http.ResponseWriter, status int, data any)
 }
 
 // respondServiceError maps domain/database errors to HTTP responses.
-// Returns true if the error was handled, false if the caller should handle it.
 func (h *APIHandler) respondServiceError(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, domain.ErrUnauthorized):

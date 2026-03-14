@@ -65,6 +65,9 @@ type UpdateFamilyRequest struct {
 }
 
 func (r *UpdateFamilyRequest) Validate() error {
+	if r.Name == "" {
+		return validationErr("family name cannot be empty")
+	}
 	if len(r.Name) > MaxNameLength {
 		return validationErr("name too long (max 100 characters)")
 	}

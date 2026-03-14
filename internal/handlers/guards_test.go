@@ -14,6 +14,7 @@ import (
 	"github.com/rgeraskin/joytime/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestUpdateCompletedTaskBlocked(t *testing.T) {
@@ -275,4 +276,66 @@ func TestRewardClaimHTTP(t *testing.T) {
 		testHandler.handleRewardsByFamily(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+}
+
+func TestParseFamilyEntityPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		prefix     string
+		wantFamily string
+		wantEntity string
+		wantErr    bool
+	}{
+		{"family only", "/api/v1/tasks/FAM123", "/api/v1/tasks/", "FAM123", "", false},
+		{"family and entity", "/api/v1/tasks/FAM123/Do+Dishes", "/api/v1/tasks/", "FAM123", "Do Dishes", false},
+		{"empty after prefix", "/api/v1/tasks/", "/api/v1/tasks/", "", "", false},
+		{"encoded entity", "/api/v1/rewards/FAM/My%20Reward", "/api/v1/rewards/", "FAM", "My Reward", false},
+		{"trailing slash ignored", "/api/v1/tasks/FAM123/", "/api/v1/tasks/", "FAM123", "", false},
+		{"bad encoding", "/api/v1/tasks/FAM/%zz", "/api/v1/tasks/", "FAM", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			family, entity, err := parseFamilyEntityPath(tt.path, tt.prefix)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantFamily, family)
+			assert.Equal(t, tt.wantEntity, entity)
+		})
+	}
+}
+
+func TestRespondServiceError(t *testing.T) {
+	setupTestDB(t)
+
+	tests := []struct {
+		name         string
+		err          error
+		wantStatus   int
+		wantContains string
+	}{
+		{"unauthorized", domain.ErrUnauthorized, http.StatusForbidden, "access denied"},
+		{"not found", gorm.ErrRecordNotFound, http.StatusNotFound, ErrEntityNotFound},
+		{"insufficient tokens", domain.ErrInsufficientTokens, http.StatusBadRequest, ErrInsufficientTokens},
+		{"validation error", domain.ErrValidation, http.StatusBadRequest, "validation error"},
+		{"cannot delete self", domain.ErrCannotDeleteSelf, http.StatusBadRequest, "cannot delete yourself"},
+		{"task already completed", domain.ErrTaskAlreadyCompleted, http.StatusBadRequest, "already completed"},
+		{"unknown error", fmt.Errorf("something broke"), http.StatusInternalServerError, "fallback"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			testHandler.respondServiceError(w, tt.err, "fallback")
+			assert.Equal(t, tt.wantStatus, w.Code)
+
+			var resp ErrorResponse
+			json.NewDecoder(w.Body).Decode(&resp)
+			assert.Contains(t, resp.Error, tt.wantContains)
+		})
+	}
 }

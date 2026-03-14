@@ -119,10 +119,6 @@ func (s *FamilyService) UpdateFamily(
 		return nil, err
 	}
 
-	if updates.Name == "" {
-		return nil, validationErr("family name cannot be empty")
-	}
-
 	var family models.Families
 	err := s.db.WithContext(ctx).Where("uid = ?", familyUID).First(&family).Error
 	if err != nil {
