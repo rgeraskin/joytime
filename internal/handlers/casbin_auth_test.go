@@ -21,7 +21,7 @@ func setupAuthTestData(
 		Name: fmt.Sprintf("AuthTestFamily_%s", t.Name()),
 		UID:  fmt.Sprintf("family_uid_%s_%d", t.Name(), time.Now().UnixNano()),
 	}
-	result := testHandler.db.Create(family)
+	result := testHandler.DB().Create(family)
 	require.NoError(t, result.Error)
 
 	// Create parent user
@@ -32,7 +32,7 @@ func setupAuthTestData(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	result = testHandler.db.Create(parent)
+	result = testHandler.DB().Create(parent)
 	require.NoError(t, result.Error)
 
 	// Create child user
@@ -43,7 +43,7 @@ func setupAuthTestData(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	result = testHandler.db.Create(child)
+	result = testHandler.DB().Create(child)
 	require.NoError(t, result.Error)
 
 	// Create tokens for child
@@ -51,7 +51,7 @@ func setupAuthTestData(
 		UserID: child.UserID,
 		Tokens: 50,
 	}
-	result = testHandler.db.Create(tokens)
+	result = testHandler.DB().Create(tokens)
 	require.NoError(t, result.Error)
 
 	return family, parent, child
@@ -66,7 +66,7 @@ func setupSecondFamily(
 		Name: fmt.Sprintf("SecondFamily_%s", t.Name()),
 		UID:  fmt.Sprintf("family2_uid_%s_%d", t.Name(), time.Now().UnixNano()),
 	}
-	result := testHandler.db.Create(family)
+	result := testHandler.DB().Create(family)
 	require.NoError(t, result.Error)
 
 	// Create parent in second family
@@ -77,7 +77,7 @@ func setupSecondFamily(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	result = testHandler.db.Create(parent)
+	result = testHandler.DB().Create(parent)
 	require.NoError(t, result.Error)
 
 	// Create child in second family
@@ -88,7 +88,7 @@ func setupSecondFamily(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	result = testHandler.db.Create(child)
+	result = testHandler.DB().Create(child)
 	require.NoError(t, result.Error)
 
 	return family, parent, child
@@ -125,7 +125,7 @@ func TestCasbinParentPermissions(t *testing.T) {
 
 		// Verify task was created
 		var createdTask models.Tasks
-		err = testHandler.db.Where("name = ?", "Parent Created Task").First(&createdTask).Error
+		err = testHandler.DB().Where("name = ?", "Parent Created Task").First(&createdTask).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "Parent Created Task", createdTask.Name)
 	})

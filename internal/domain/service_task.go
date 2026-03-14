@@ -245,6 +245,11 @@ func (s *TaskService) UpdateTask(
 		if err != nil {
 			return nil, err
 		}
+
+		// Re-read to return current state (use ID since name may have changed)
+		if err := s.db.WithContext(ctx).First(&task, task.ID).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	return &task, nil

@@ -48,26 +48,3 @@ func GetAuthContext(r *http.Request) *domain.AuthContext {
 	return authCtx
 }
 
-// RequireParent middleware ensures only parents can access the endpoint
-func (h *APIHandler) RequireParent(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-		if authCtx == nil || authCtx.UserRole != domain.RoleParent {
-			h.respondError(w, http.StatusForbidden, "Parent role required")
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
-// RequireChild middleware ensures only children can access the endpoint
-func (h *APIHandler) RequireChild(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-		if authCtx == nil || authCtx.UserRole != domain.RoleChild {
-			h.respondError(w, http.StatusForbidden, "Child role required")
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}

@@ -53,12 +53,12 @@ func assertSuccessResponse(
 
 // cleanupTestData removes all test data from database in correct order to handle foreign key constraints
 func cleanupTestData() {
-	testHandler.db.Unscoped().Where("1 = 1").Delete(&models.TokenHistory{})
-	testHandler.db.Unscoped().Where("1 = 1").Delete(&models.Tokens{})
-	testHandler.db.Unscoped().Where("1 = 1").Delete(&models.Tasks{})
-	testHandler.db.Unscoped().Where("1 = 1").Delete(&models.Rewards{})
-	testHandler.db.Unscoped().Where("1 = 1").Delete(&models.Users{})
-	testHandler.db.Unscoped().Where("1 = 1").Delete(&models.Families{})
+	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.TokenHistory{})
+	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Tokens{})
+	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Tasks{})
+	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Rewards{})
+	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Users{})
+	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Families{})
 }
 
 // migrateTestSchema migrates all required models for testing
@@ -79,7 +79,7 @@ func migrateTestSchema(includeEntities bool) error {
 		&models.TokenHistory{},
 	)
 
-	return testHandler.db.AutoMigrate(modelsList...)
+	return testHandler.DB().AutoMigrate(modelsList...)
 }
 
 // setupTestDBConnection establishes database connection for testing
@@ -160,7 +160,7 @@ func setupTestDB(t *testing.T) *models.Families {
 		Name: t.Name(),
 		UID:  uniqueUID,
 	}
-	result := testHandler.db.Create(&family)
+	result := testHandler.DB().Create(&family)
 	if result.Error != nil {
 		t.Fatalf("Failed to create family: %v", result.Error)
 	}
@@ -189,7 +189,7 @@ func setupServiceTestData(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	err = testHandler.db.Create(parent).Error
+	err = testHandler.DB().Create(parent).Error
 	require.NoError(t, err)
 
 	// Create child user
@@ -200,7 +200,7 @@ func setupServiceTestData(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	err = testHandler.db.Create(child).Error
+	err = testHandler.DB().Create(child).Error
 	require.NoError(t, err)
 
 	// Create tokens for child
@@ -208,7 +208,7 @@ func setupServiceTestData(
 		UserID: child.UserID,
 		Tokens: 50,
 	}
-	err = testHandler.db.Create(tokens).Error
+	err = testHandler.DB().Create(tokens).Error
 	require.NoError(t, err)
 
 	// Create service context for parent (has most permissions)
@@ -268,7 +268,7 @@ func TestGenerateUniqueFamilyUID(t *testing.T) {
 
 		// Verify it's actually in the database
 		var dbFamily models.Families
-		err = testHandler.db.Where("uid = ?", family.UID).First(&dbFamily).Error
+		err = testHandler.DB().Where("uid = ?", family.UID).First(&dbFamily).Error
 		assert.NoError(t, err)
 		assert.Equal(t, family.Name, dbFamily.Name)
 	})

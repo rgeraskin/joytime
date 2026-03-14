@@ -124,6 +124,11 @@ func (s *UserService) UpdateUser(
 		if err != nil {
 			return nil, err
 		}
+
+		// Re-read to return current state
+		if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&existingUser).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	return &existingUser, nil

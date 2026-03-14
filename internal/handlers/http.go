@@ -12,11 +12,11 @@ const (
 )
 
 // SetupAPI configures and returns the HTTP server for the API with RBAC enforcement
-func SetupAPI(database *gorm.DB, _logger *log.Logger) *http.Server {
-	handler := NewAPIHandler(database, _logger)
+func SetupAPI(database *gorm.DB, logger *log.Logger) *http.Server {
+	handler := NewAPIHandler(database, logger)
 	mux := http.NewServeMux()
 
-	_logger.Debug("Setting up API with business logic and RBAC enforcement")
+	logger.Debug("Setting up API with business logic and RBAC enforcement")
 
 	// Apply authentication middleware to all business endpoints
 	// Note: In production, you might want more granular middleware application

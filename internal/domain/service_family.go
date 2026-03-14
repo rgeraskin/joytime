@@ -134,5 +134,10 @@ func (s *FamilyService) UpdateFamily(
 		return nil, err
 	}
 
+	// Re-read to return current state
+	if err := s.db.WithContext(ctx).First(&family, family.ID).Error; err != nil {
+		return nil, err
+	}
+
 	return &family, nil
 }

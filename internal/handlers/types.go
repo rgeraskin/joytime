@@ -12,7 +12,6 @@ import (
 
 // APIHandler contains the dependencies for API handlers
 type APIHandler struct {
-	db       *gorm.DB
 	logger   *log.Logger
 	services *domain.Services
 }
@@ -25,10 +24,14 @@ func NewAPIHandler(database *gorm.DB, logger *log.Logger) *APIHandler {
 	}
 
 	return &APIHandler{
-		db:       database,
 		logger:   logger,
 		services: services,
 	}
+}
+
+// DB returns the underlying database connection (used by tests for setup/teardown)
+func (h *APIHandler) DB() *gorm.DB {
+	return h.services.DB()
 }
 
 // ErrorResponse represents a standardized error response
@@ -52,8 +55,6 @@ type TokenAddRequest struct {
 	TaskID      *uint  `json:"task_id,omitempty"`
 	RewardID    *uint  `json:"reward_id,omitempty"`
 }
-
-
 
 // ValidationError represents validation errors
 type ValidationError struct {
