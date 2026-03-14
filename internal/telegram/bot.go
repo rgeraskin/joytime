@@ -15,23 +15,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// Input states for multi-step conversation flows
+// Input states for multi-step conversation flows (text input only)
 const (
 	stateJoinFamily       = "join_family"
 	stateAddTaskName      = "add_task_name"
 	stateAddTaskTokens    = "add_task_tokens"
-	stateEditTaskID       = "edit_task_id"
 	stateEditTaskTokens   = "edit_task_tokens"
-	stateDeleteTaskID     = "delete_task_id"
 	stateAddRewardName    = "add_reward_name"
 	stateAddRewardTokens  = "add_reward_tokens"
-	stateEditRewardID     = "edit_reward_id"
 	stateEditRewardTokens = "edit_reward_tokens"
-	stateDeleteRewardID   = "delete_reward_id"
-	stateTaskDone         = "task_done"
-	stateRewardClaim      = "reward_claim"
-	stateReviewTask       = "review_task"
 )
+
+// Number grid settings
+const gridMaxCols = 7
 
 // Bot wraps the Telegram bot with domain services
 type Bot struct {
@@ -112,7 +108,35 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	_ = c.Respond()
 	b.clearState(c.Sender().ID)
 
+	// Handle parameterized callbacks (format: "prefix:number")
+	if idx := strings.IndexByte(data, ':'); idx > 0 {
+		prefix := data[:idx]
+		num, err := parseNumber(data[idx+1:])
+		if err != nil {
+			return nil
+		}
+		switch prefix {
+		case "pick_edit_task":
+			return b.onEditTaskPick(c, num)
+		case "pick_del_task":
+			return b.onDeleteTaskPick(c, num)
+		case "pick_edit_reward":
+			return b.onEditRewardPick(c, num)
+		case "pick_del_reward":
+			return b.onDeleteRewardPick(c, num)
+		case "pick_review":
+			return b.onReviewTaskPick(c, num)
+		case "pick_task_done":
+			return b.onTaskDonePick(c, num)
+		case "pick_reward_claim":
+			return b.onRewardClaimPick(c, num)
+		}
+	}
+
 	switch data {
+	case "noop":
+		return nil
+
 	// Registration
 	case "role_parent":
 		return b.onSelectRole(c, string(domain.RoleParent))
@@ -186,34 +210,16 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.onAddTaskName(c, text)
 	case stateAddTaskTokens:
 		return b.onAddTaskTokens(c, text, inputCtx)
-	case stateEditTaskID:
-		return b.onEditTaskID(c, text)
 	case stateEditTaskTokens:
 		return b.onEditTaskTokens(c, text, inputCtx)
-	case stateDeleteTaskID:
-		return b.onDeleteTaskID(c, text)
 
 	// Reward management (parent)
 	case stateAddRewardName:
 		return b.onAddRewardName(c, text)
 	case stateAddRewardTokens:
 		return b.onAddRewardTokens(c, text, inputCtx)
-	case stateEditRewardID:
-		return b.onEditRewardID(c, text)
 	case stateEditRewardTokens:
 		return b.onEditRewardTokens(c, text, inputCtx)
-	case stateDeleteRewardID:
-		return b.onDeleteRewardID(c, text)
-
-	// Child actions
-	case stateTaskDone:
-		return b.onTaskDoneText(c, text)
-	case stateRewardClaim:
-		return b.onRewardClaimText(c, text)
-
-	// Parent review
-	case stateReviewTask:
-		return b.onReviewTaskText(c, text)
 	}
 
 	return c.Send("Не понимаю. Нажми /start для начала")
@@ -318,6 +324,31 @@ func btn(text, data string) tele.InlineButton {
 
 func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
+}
+
+// numberGrid builds a grid of numbered buttons with placeholder padding.
+// Buttons use callback data format "prefix:N" where N is 1-based.
+func numberGrid(count int, callbackPrefix string) [][]tele.InlineButton {
+	var rows [][]tele.InlineButton
+	var row []tele.InlineButton
+	for i := 1; i <= count; i++ {
+		row = append(row, tele.InlineButton{
+			Text: fmt.Sprintf("%d", i),
+			Data: fmt.Sprintf("%s:%d", callbackPrefix, i),
+		})
+		if len(row) == gridMaxCols {
+			rows = append(rows, row)
+			row = nil
+		}
+	}
+	// Pad last row with placeholders
+	if len(row) > 0 {
+		for len(row) < gridMaxCols {
+			row = append(row, tele.InlineButton{Text: " ", Data: "noop"})
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 // escapeMarkdownV2 escapes special characters for Telegram MarkdownV2

@@ -136,19 +136,35 @@ func (b *Bot) onAddTaskTokens(c tele.Context, text, taskName string) error {
 	return b.showTasks(c)
 }
 
+// --- Task edit (number grid → text input for tokens) ---
+
 func (b *Bot) onEditTaskPrompt(c tele.Context) error {
-	if err := b.setState(c.Sender().ID, stateEditTaskID, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
 	}
-	return c.Send("Введи номер задания для изменения")
+
+	tasks, err := b.services.TaskService.GetTasksForFamily(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting tasks", err)
+	}
+
+	if len(tasks) == 0 {
+		return c.Send("Нет заданий", inlineKeyboard(btnRow(btn("Назад", "parent_tasks"))))
+	}
+
+	items := make([]string, len(tasks))
+	for i, t := range tasks {
+		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
+	}
+
+	msg := formatList("Выбери задание для изменения", items)
+	grid := numberGrid(len(tasks), "pick_edit_task")
+	grid = append(grid, btnRow(btn("Назад", "parent_tasks")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onEditTaskID(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер задания должен быть числом")
-	}
-
+func (b *Bot) onEditTaskPick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -193,19 +209,35 @@ func (b *Bot) onEditTaskTokens(c tele.Context, text, taskName string) error {
 	return b.showTasks(c)
 }
 
+// --- Task delete (number grid → immediate action) ---
+
 func (b *Bot) onDeleteTaskPrompt(c tele.Context) error {
-	if err := b.setState(c.Sender().ID, stateDeleteTaskID, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
 	}
-	return c.Send("Введи номер задания для удаления")
+
+	tasks, err := b.services.TaskService.GetTasksForFamily(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting tasks", err)
+	}
+
+	if len(tasks) == 0 {
+		return c.Send("Нет заданий", inlineKeyboard(btnRow(btn("Назад", "parent_tasks"))))
+	}
+
+	items := make([]string, len(tasks))
+	for i, t := range tasks {
+		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
+	}
+
+	msg := formatList("Выбери задание для удаления", items)
+	grid := numberGrid(len(tasks), "pick_del_task")
+	grid = append(grid, btnRow(btn("Назад", "parent_tasks")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onDeleteTaskID(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер задания должен быть числом")
-	}
-
+func (b *Bot) onDeleteTaskPick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -225,7 +257,6 @@ func (b *Bot) onDeleteTaskID(c tele.Context, text string) error {
 		return b.internalError(c, "Error deleting task", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("Задание удалено!"); err != nil {
 		return err
 	}
@@ -304,19 +335,35 @@ func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 	return b.showRewards(c)
 }
 
+// --- Reward edit (number grid → text input for tokens) ---
+
 func (b *Bot) onEditRewardPrompt(c tele.Context) error {
-	if err := b.setState(c.Sender().ID, stateEditRewardID, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
 	}
-	return c.Send("Введи номер награды для изменения")
+
+	rewards, err := b.services.RewardService.GetRewardsForFamily(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting rewards", err)
+	}
+
+	if len(rewards) == 0 {
+		return c.Send("Нет наград", inlineKeyboard(btnRow(btn("Назад", "parent_rewards"))))
+	}
+
+	items := make([]string, len(rewards))
+	for i, r := range rewards {
+		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
+	}
+
+	msg := formatList("Выбери награду для изменения", items)
+	grid := numberGrid(len(rewards), "pick_edit_reward")
+	grid = append(grid, btnRow(btn("Назад", "parent_rewards")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onEditRewardID(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер награды должен быть числом")
-	}
-
+func (b *Bot) onEditRewardPick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -361,19 +408,35 @@ func (b *Bot) onEditRewardTokens(c tele.Context, text, rewardName string) error 
 	return b.showRewards(c)
 }
 
+// --- Reward delete (number grid → immediate action) ---
+
 func (b *Bot) onDeleteRewardPrompt(c tele.Context) error {
-	if err := b.setState(c.Sender().ID, stateDeleteRewardID, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
 	}
-	return c.Send("Введи номер награды для удаления")
+
+	rewards, err := b.services.RewardService.GetRewardsForFamily(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting rewards", err)
+	}
+
+	if len(rewards) == 0 {
+		return c.Send("Нет наград", inlineKeyboard(btnRow(btn("Назад", "parent_rewards"))))
+	}
+
+	items := make([]string, len(rewards))
+	for i, r := range rewards {
+		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
+	}
+
+	msg := formatList("Выбери награду для удаления", items)
+	grid := numberGrid(len(rewards), "pick_del_reward")
+	grid = append(grid, btnRow(btn("Назад", "parent_rewards")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onDeleteRewardID(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер награды должен быть числом")
-	}
-
+func (b *Bot) onDeleteRewardPick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -393,14 +456,13 @@ func (b *Bot) onDeleteRewardID(c tele.Context, text string) error {
 		return b.internalError(c, "Error deleting reward", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("Награда удалена!"); err != nil {
 		return err
 	}
 	return b.showRewards(c)
 }
 
-// --- Task Review ---
+// --- Task Review (number grid → immediate action) ---
 
 func (b *Bot) showPendingReview(c tele.Context) error {
 	auth, err := b.authCtx(c.Sender().ID)
@@ -435,19 +497,12 @@ func (b *Bot) showPendingReview(c tele.Context) error {
 	}
 
 	msg := formatList("Задания на проверку", items)
-	if err := b.setState(c.Sender().ID, stateReviewTask, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
-	}
-	return c.Send(msg+"\nВведи номер задания для подтверждения",
-		inlineKeyboard(btnRow(btn("Назад", "back_parent"))))
+	grid := numberGrid(len(pending), "pick_review")
+	grid = append(grid, btnRow(btn("Назад", "back_parent")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onReviewTaskText(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер задания должен быть числом")
-	}
-
+func (b *Bot) onReviewTaskPick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -475,7 +530,6 @@ func (b *Bot) onReviewTaskText(c tele.Context, text string) error {
 		return b.internalError(c, "Error completing task", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send(fmt.Sprintf("Задание \"%s\" подтверждено! %d 💎 начислено", task.Name, task.Tokens)); err != nil {
 		return err
 	}

@@ -29,7 +29,7 @@ func (b *Bot) showChildMenu(c tele.Context) error {
 	return c.Send(fmt.Sprintf("Твой баланс: %d 💎", tokens.Tokens), kb)
 }
 
-// --- Task completion ---
+// --- Task completion (number grid → immediate action) ---
 
 func (b *Bot) onTaskDonePrompt(c tele.Context) error {
 	auth, err := b.authCtx(c.Sender().ID)
@@ -60,19 +60,12 @@ func (b *Bot) onTaskDonePrompt(c tele.Context) error {
 	}
 
 	msg := formatList("Доступные задания", items)
-	if err := b.setState(c.Sender().ID, stateTaskDone, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
-	}
-	return c.Send(msg+"\nВведи номер задания",
-		inlineKeyboard(btnRow(btn("Назад", "back_child"))))
+	grid := numberGrid(len(available), "pick_task_done")
+	grid = append(grid, btnRow(btn("Назад", "back_child")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onTaskDoneText(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер задания должен быть числом")
-	}
-
+func (b *Bot) onTaskDonePick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -103,7 +96,6 @@ func (b *Bot) onTaskDoneText(c tele.Context, text string) error {
 		return b.internalError(c, "Error completing task", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send(fmt.Sprintf(
 		"Задание \"%s\" отмечено выполненным!\nПосле проверки родителем ты получишь %d 💎",
 		task.Name, task.Tokens,
@@ -123,7 +115,7 @@ func (b *Bot) onTaskDoneText(c tele.Context, text string) error {
 	return b.showChildMenu(c)
 }
 
-// --- Reward claiming ---
+// --- Reward claiming (number grid → immediate action) ---
 
 func (b *Bot) onRewardClaimPrompt(c tele.Context) error {
 	auth, err := b.authCtx(c.Sender().ID)
@@ -146,19 +138,12 @@ func (b *Bot) onRewardClaimPrompt(c tele.Context) error {
 	}
 
 	msg := formatList("Награды", items)
-	if err := b.setState(c.Sender().ID, stateRewardClaim, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
-	}
-	return c.Send(msg+"\nВведи номер награды",
-		inlineKeyboard(btnRow(btn("Назад", "back_child"))))
+	grid := numberGrid(len(rewards), "pick_reward_claim")
+	grid = append(grid, btnRow(btn("Назад", "back_child")))
+	return c.Send(msg, inlineKeyboard(grid...))
 }
 
-func (b *Bot) onRewardClaimText(c tele.Context, text string) error {
-	num, err := parseNumber(text)
-	if err != nil {
-		return c.Send("Номер награды должен быть числом")
-	}
-
+func (b *Bot) onRewardClaimPick(c tele.Context, num int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
@@ -182,8 +167,7 @@ func (b *Bot) onRewardClaimText(c tele.Context, text string) error {
 		return b.internalError(c, "Error claiming reward", err)
 	}
 
-	b.clearState(c.Sender().ID)
-	if err := c.Send(fmt.Sprintf("Награда \"%s\" куплена!", reward.Name)); err != nil {
+	if err := c.Send(fmt.Sprintf("Награда \"%s\" получена!", reward.Name)); err != nil {
 		return err
 	}
 
@@ -194,7 +178,7 @@ func (b *Bot) onRewardClaimText(c tele.Context, text string) error {
 		childName = user.Name
 	}
 	b.notifyParents(auth.FamilyUID, c.Sender().ID,
-		fmt.Sprintf("%s купил награду: %s (%d 💎)", childName, reward.Name, reward.Tokens))
+		fmt.Sprintf("%s получил награду: %s (%d 💎)", childName, reward.Name, reward.Tokens))
 
 	return b.showChildMenu(c)
 }
