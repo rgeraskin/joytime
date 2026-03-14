@@ -100,21 +100,16 @@ func (s *UserService) UpdateUser(
 
 	// Build selective update fields
 	updateFields := make(UpdateFields)
-	allowedFields := []string{}
 
 	// Children can only update their name, parents can update name and role of others
 	if authCtx.UserRole == RoleChild && authCtx.UserID == userID {
 		// Children can only update their own name
 		updateFields.AddStringIfNotEmpty("name", updates.Name)
-		allowedFields = []string{"name"}
 	} else if authCtx.UserRole == RoleParent {
 		updateFields.AddStringIfNotEmpty("name", updates.Name)
 		if authCtx.UserID != userID {
 			// Parents can change role of OTHER users (not themselves)
 			updateFields.AddStringIfNotEmpty("role", updates.Role)
-			allowedFields = []string{"name", "role"}
-		} else {
-			allowedFields = []string{"name"}
 		}
 	}
 
@@ -122,7 +117,7 @@ func (s *UserService) UpdateUser(
 	if len(updateFields) > 0 {
 		err = s.db.WithContext(ctx).
 			Model(&existingUser).
-			Select(allowedFields).
+			Select(updateFields.Keys()).
 			Updates(updateFields.ToMap()).
 			Error
 		if err != nil {

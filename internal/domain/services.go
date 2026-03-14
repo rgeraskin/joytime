@@ -18,7 +18,7 @@ type Services struct {
 // NewServices creates a new services instance with Casbin authorization
 func NewServices(db *gorm.DB, logger *log.Logger) (*Services, error) {
 	// Initialize Casbin authorization service
-	auth, err := NewCasbinAuthService(db, logger)
+	auth, err := NewCasbinAuthService(logger)
 	if err != nil {
 		return nil, err
 	}

@@ -167,20 +167,28 @@ func (s *TokenService) GetTokenHistory(
 }
 
 // ClaimReward processes a reward claim with atomic balance check + deduction.
-// The caller must supply the full reward (already fetched and authorized).
+// Re-reads the reward inside the transaction to prevent TOCTOU races
+// (e.g. a parent updating the reward cost between fetch and claim).
 func (s *TokenService) ClaimReward(
 	ctx context.Context,
 	authCtx *AuthContext,
-	reward *models.Rewards,
+	familyUID, rewardName string,
 ) error {
 	// Check permission and family access using Casbin
-	if err := s.auth.RequirePermission(authCtx, "rewards", "claim", reward.FamilyUID); err != nil {
+	if err := s.auth.RequirePermission(authCtx, "rewards", "claim", familyUID); err != nil {
 		return err
 	}
 
-	// Atomic balance check + deduction inside a single transaction
-	rewardID := reward.ID
+	// Atomic re-read + balance check + deduction inside a single transaction
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var reward models.Rewards
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("family_uid = ? AND name = ?", familyUID, rewardName).
+			First(&reward).Error; err != nil {
+			return err
+		}
+
+		rewardID := reward.ID
 		return s.addTokensInTx(
 			tx,
 			authCtx.UserID,

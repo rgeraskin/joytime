@@ -227,7 +227,6 @@ func (s *TaskService) UpdateTask(
 
 	// Build selective update fields - only allow specific fields to be updated
 	updateFields := make(UpdateFields)
-	allowedFields := []string{}
 
 	// Business rules for which fields can be updated by different roles
 	switch authCtx.UserRole {
@@ -237,18 +236,16 @@ func (s *TaskService) UpdateTask(
 		updateFields.AddStringIfNotEmpty("description", updates.Description)
 		updateFields.AddIntIfSet("tokens", updates.Tokens)
 		updateFields.AddStringIfNotEmpty("status", updates.Status)
-		allowedFields = []string{"name", "description", "tokens", "status"}
 	case RoleChild:
 		// Children can only update status (for marking completion)
 		updateFields.AddStringIfNotEmpty("status", updates.Status)
-		allowedFields = []string{"status"}
 	}
 
 	// Apply updates only if there are fields to update
 	if len(updateFields) > 0 {
 		err = s.db.WithContext(ctx).
 			Model(&task).
-			Select(allowedFields).
+			Select(updateFields.Keys()).
 			Updates(updateFields.ToMap()).
 			Error
 		if err != nil {

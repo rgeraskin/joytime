@@ -118,13 +118,7 @@ func (h *APIHandler) deleteReward(w http.ResponseWriter, r *http.Request, authCt
 }
 
 func (h *APIHandler) claimReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, rewardName string) {
-	reward, err := h.services.RewardService.GetReward(r.Context(), authCtx, familyUID, rewardName)
-	if err != nil {
-		h.respondServiceError(w, err, "failed to retrieve reward")
-		return
-	}
-
-	if err := h.services.TokenService.ClaimReward(r.Context(), authCtx, reward); err != nil {
+	if err := h.services.TokenService.ClaimReward(r.Context(), authCtx, familyUID, rewardName); err != nil {
 		h.respondServiceError(w, err, "failed to claim reward")
 		return
 	}

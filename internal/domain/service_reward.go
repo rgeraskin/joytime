@@ -106,7 +106,7 @@ func (s *RewardService) UpdateReward(
 	if len(updateFields) > 0 {
 		err = s.db.WithContext(ctx).
 			Model(&reward).
-			Select([]string{"name", "description", "tokens"}).
+			Select(updateFields.Keys()).
 			Updates(updateFields.ToMap()).
 			Error
 		if err != nil {

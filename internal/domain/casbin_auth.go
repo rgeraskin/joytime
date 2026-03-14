@@ -7,7 +7,6 @@ import (
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/charmbracelet/log"
-	"gorm.io/gorm"
 )
 
 // InMemoryAdapter is a simple in-memory adapter for Casbin
@@ -55,11 +54,10 @@ func (a *InMemoryAdapter) RemoveFilteredPolicy(
 type CasbinAuthService struct {
 	enforcer *casbin.Enforcer
 	logger   *log.Logger
-	db       *gorm.DB
 }
 
 // NewCasbinAuthService creates a new Casbin-based authorization service
-func NewCasbinAuthService(db *gorm.DB, logger *log.Logger) (*CasbinAuthService, error) {
+func NewCasbinAuthService(logger *log.Logger) (*CasbinAuthService, error) {
 	// Create in-memory adapter - no persistence needed since code is source of truth
 	adapter := &InMemoryAdapter{}
 
@@ -105,7 +103,6 @@ m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act && r.familyCtx == r.reso
 	service := &CasbinAuthService{
 		enforcer: enforcer,
 		logger:   logger,
-		db:       db,
 	}
 
 	// Always initialize policies from code (source of truth)

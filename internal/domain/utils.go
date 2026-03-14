@@ -19,6 +19,15 @@ func (uf UpdateFields) AddIntIfSet(field string, value *int) UpdateFields {
 	return uf
 }
 
+// Keys returns the field names that were actually set
+func (uf UpdateFields) Keys() []string {
+	keys := make([]string, 0, len(uf))
+	for k := range uf {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // ToMap returns the underlying map
 func (uf UpdateFields) ToMap() map[string]any {
 	return map[string]any(uf)
