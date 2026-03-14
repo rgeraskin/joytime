@@ -216,6 +216,11 @@ func (s *TaskService) UpdateTask(
 		return nil, err
 	}
 
+	// Validate status transition if status is being updated
+	if updates.Status != "" && task.Status == TaskStatusCompleted {
+		return nil, ErrTaskAlreadyCompleted
+	}
+
 	// Build selective update fields - only allow specific fields to be updated
 	updateFields := make(UpdateFields)
 	allowedFields := []string{}

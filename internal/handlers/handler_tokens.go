@@ -9,14 +9,14 @@ import (
 
 // Token endpoints
 func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
+		switch r.Method {
+		case http.MethodPost:
 			h.createTokenTransaction(w, r, authCtx)
-		})(w, r)
-	default:
-		h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
-	}
+		default:
+			h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
+		}
+	})(w, r)
 }
 
 func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +140,7 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 
 	tokens, err := h.services.TokenService.GetUserTokens(r.Context(), authCtx, userID)
 	if err != nil {
-		h.respondError(w, http.StatusInternalServerError, "failed to retrieve updated tokens")
+		h.respondServiceError(w, err, "failed to retrieve updated tokens")
 		return
 	}
 

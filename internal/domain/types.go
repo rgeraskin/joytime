@@ -47,23 +47,23 @@ type AuthContext struct {
 
 // Update DTOs - these define exactly which fields can be updated
 type UpdateFamilyRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=100"`
+	Name string `json:"name"`
 }
 
 type UpdateUserRequest struct {
-	Name string `json:"name" validate:"omitempty,min=1,max=100"`
-	Role string `json:"role" validate:"omitempty,oneof=parent child"`
+	Name string `json:"name"`
+	Role string `json:"role"`
 }
 
 type UpdateTaskRequest struct {
-	Name        string `json:"name"        validate:"omitempty,min=1,max=100"`
-	Description string `json:"description" validate:"omitempty,max=500"`
-	Tokens      *int   `json:"tokens"      validate:"omitempty,min=0,max=1000"`
-	Status      string `json:"status"      validate:"omitempty,oneof=new check completed"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Tokens      *int   `json:"tokens"`
+	Status      string `json:"status"`
 }
 
 type UpdateRewardRequest struct {
-	Name        string `json:"name"        validate:"omitempty,min=1,max=100"`
-	Description string `json:"description" validate:"omitempty,max=500"`
-	Tokens      *int   `json:"tokens"      validate:"omitempty,min=0,max=1000"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Tokens      *int   `json:"tokens"`
 }

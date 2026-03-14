@@ -205,33 +205,14 @@ func (s *TokenService) ClaimReward(
 
 	// Atomic balance check + deduction inside a single transaction
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var tokens models.Tokens
-		// Lock the row to prevent concurrent claims
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("user_id = ?", authCtx.UserID).First(&tokens).Error
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrInsufficientTokens
-			}
-			return err
-		}
-
-		if tokens.Tokens < reward.Tokens {
-			return ErrInsufficientTokens
-		}
-
-		tokens.Tokens -= reward.Tokens
-		if err := tx.Save(&tokens).Error; err != nil {
-			return err
-		}
-
-		history := models.TokenHistory{
-			UserID:      authCtx.UserID,
-			Amount:      -reward.Tokens,
-			Type:        TokenTypeRewardClaimed,
-			Description: "Claimed reward: " + reward.Name,
-			RewardID:    &rewardID,
-		}
-		return tx.Create(&history).Error
+		return s.addTokensInTx(
+			tx,
+			authCtx.UserID,
+			-reward.Tokens,
+			TokenTypeRewardClaimed,
+			"Claimed reward: "+reward.Name,
+			nil,
+			&rewardID,
+		)
 	})
 }

@@ -302,11 +302,11 @@ func TestNewHandlerNames(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("Tokens endpoint rejects non-POST methods", func(t *testing.T) {
+	t.Run("Tokens endpoint requires authentication", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/tokens", nil)
 		w := httptest.NewRecorder()
 		testHandler.handleTokens(w, req)
-		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }
 
