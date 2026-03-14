@@ -50,6 +50,7 @@ func sanitizeEntity(entity *models.Entities) {
 }
 
 func sanitizeTokenAddRequest(req *TokenAddRequest) {
+	req.UserID = sanitizeInput(req.UserID)
 	req.Type = sanitizeInput(req.Type)
 	req.Description = sanitizeInput(req.Description)
 }

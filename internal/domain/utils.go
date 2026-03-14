@@ -3,19 +3,18 @@ package domain
 // UpdateFields helps build selective update maps for GORM
 type UpdateFields map[string]any
 
-// AddFieldIfNotEmpty adds a field to the update map if it's not empty/zero value
-func (uf UpdateFields) AddFieldIfNotEmpty(field string, value any) UpdateFields {
-	switch v := value.(type) {
-	case string:
-		if v != "" {
-			uf[field] = v
-		}
-	case int:
-		if v != 0 {
-			uf[field] = v
-		}
-	case bool:
-		uf[field] = v // Always include booleans
+// AddStringIfNotEmpty adds a string field if non-empty
+func (uf UpdateFields) AddStringIfNotEmpty(field, value string) UpdateFields {
+	if value != "" {
+		uf[field] = value
+	}
+	return uf
+}
+
+// AddIntIfSet adds an int field if the pointer is non-nil (allows setting to 0)
+func (uf UpdateFields) AddIntIfSet(field string, value *int) UpdateFields {
+	if value != nil {
+		uf[field] = *value
 	}
 	return uf
 }

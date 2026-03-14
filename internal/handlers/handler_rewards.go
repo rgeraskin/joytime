@@ -16,7 +16,7 @@ func (h *APIHandler) handleRewards(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -33,7 +33,7 @@ func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Reques
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -146,7 +146,7 @@ func (h *APIHandler) updateReward(w http.ResponseWriter, r *http.Request, authCt
 			h.respondError(w, http.StatusForbidden, "Only parents can update rewards")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
 			return
 		}
@@ -164,7 +164,7 @@ func (h *APIHandler) deleteReward(w http.ResponseWriter, r *http.Request, authCt
 			h.respondError(w, http.StatusForbidden, "Only parents can delete rewards")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
 			return
 		}

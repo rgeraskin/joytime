@@ -84,7 +84,7 @@ docker compose down -v postgres
 description = "Start application with DB fill"
 depends = ["build", "db:up"]
 run = """
-echo '🚀 Starting application to fill DB:..'
+echo '🚀 Starting application to fill DB...'
 $BUILD_DIR/$APP_NAME -fill
 """
 

@@ -46,4 +46,5 @@ const (
 	ErrUserIDRequiredField    = "UserID is required"
 	ErrFamilyUIDRequiredField = "FamilyUID is required"
 	ErrNameOrUIDRequired      = "Name or UID is required"
+	ErrAuthContextNotFound    = "Auth context not found"
 )

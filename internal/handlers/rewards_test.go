@@ -55,9 +55,10 @@ func TestRewardServiceCRUD(t *testing.T) {
 	})
 
 	t.Run("Parent can update reward", func(t *testing.T) {
+		newTokens := 25
 		updates := &domain.UpdateRewardRequest{
 			Name:   "Extended Screen Time",
-			Tokens: 25,
+			Tokens: &newTokens,
 		}
 
 		updated, err := testHandler.services.RewardService.UpdateReward(
@@ -162,7 +163,8 @@ func TestRewardRBAC(t *testing.T) {
 	})
 
 	t.Run("Child CANNOT update rewards", func(t *testing.T) {
-		updates := &domain.UpdateRewardRequest{Tokens: 1}
+		one := 1
+		updates := &domain.UpdateRewardRequest{Tokens: &one}
 		_, err := testHandler.services.RewardService.UpdateReward(
 			context.Background(), childCtx, family.UID, "Game Time", updates,
 		)

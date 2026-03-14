@@ -2,10 +2,12 @@ package domain
 
 import (
 	"context"
+	"errors"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TokenService handles token-related business logic
@@ -59,38 +61,47 @@ func (s *TokenService) addTokens(
 	taskID, rewardID *uint,
 ) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Get current tokens
-		var tokens models.Tokens
-		err := tx.Where("user_id = ?", targetUserID).First(&tokens).Error
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				// Create new token record
-				tokens = models.Tokens{
-					UserID: targetUserID,
-					Tokens: 0,
-				}
-			} else {
-				return err
-			}
-		}
+		return s.addTokensInTx(tx, targetUserID, amount, tokenType, description, taskID, rewardID)
+	})
+}
 
-		// Update tokens
-		tokens.Tokens += amount
-		if err := tx.Save(&tokens).Error; err != nil {
+// addTokensInTx performs token modification within an existing transaction.
+// Used when the caller already has a transaction (e.g. CompleteTask wraps
+// task status update + token award in one tx).
+func (s *TokenService) addTokensInTx(
+	tx *gorm.DB,
+	targetUserID string,
+	amount int,
+	tokenType, description string,
+	taskID, rewardID *uint,
+) error {
+	var tokens models.Tokens
+	err := tx.Where("user_id = ?", targetUserID).First(&tokens).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			tokens = models.Tokens{
+				UserID: targetUserID,
+				Tokens: 0,
+			}
+		} else {
 			return err
 		}
+	}
 
-		// Create history record
-		history := models.TokenHistory{
-			UserID:      targetUserID,
-			Amount:      amount,
-			Type:        tokenType,
-			Description: description,
-			TaskID:      taskID,
-			RewardID:    rewardID,
-		}
-		return tx.Create(&history).Error
-	})
+	tokens.Tokens += amount
+	if err := tx.Save(&tokens).Error; err != nil {
+		return err
+	}
+
+	history := models.TokenHistory{
+		UserID:      targetUserID,
+		Amount:      amount,
+		Type:        tokenType,
+		Description: description,
+		TaskID:      taskID,
+		RewardID:    rewardID,
+	}
+	return tx.Create(&history).Error
 }
 
 // GetUserTokens retrieves token balance for a user
@@ -122,7 +133,7 @@ func (s *TokenService) GetUserTokens(
 	var tokens models.Tokens
 	err = s.db.WithContext(ctx).Where("user_id = ?", userID).First(&tokens).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Return zero tokens if no record exists
 			return &models.Tokens{
 				UserID: userID,
@@ -170,7 +181,7 @@ func (s *TokenService) GetTokenHistory(
 	return history, err
 }
 
-// ClaimReward processes a reward claim
+// ClaimReward processes a reward claim with atomic balance check + deduction
 func (s *TokenService) ClaimReward(
 	ctx context.Context,
 	authCtx *AuthContext,
@@ -188,24 +199,35 @@ func (s *TokenService) ClaimReward(
 		return err
 	}
 
-	// Business Rule: User must have enough tokens
-	userTokens, err := s.GetUserTokens(ctx, authCtx, authCtx.UserID)
-	if err != nil {
-		return err
-	}
+	// Atomic balance check + deduction inside a single transaction
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var tokens models.Tokens
+		// Lock the row to prevent concurrent claims
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", authCtx.UserID).First(&tokens).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInsufficientTokens
+			}
+			return err
+		}
 
-	if userTokens.Tokens < reward.Tokens {
-		return ErrInsufficientTokens
-	}
+		if tokens.Tokens < reward.Tokens {
+			return ErrInsufficientTokens
+		}
 
-	// Deduct tokens (using internal method — permission already checked via rewards:claim)
-	return s.addTokens(
-		ctx,
-		authCtx.UserID,
-		-reward.Tokens,
-		"reward_claimed",
-		"Claimed reward: "+reward.Name,
-		nil,
-		&rewardID,
-	)
+		tokens.Tokens -= reward.Tokens
+		if err := tx.Save(&tokens).Error; err != nil {
+			return err
+		}
+
+		history := models.TokenHistory{
+			UserID:      authCtx.UserID,
+			Amount:      -reward.Tokens,
+			Type:        "reward_claimed",
+			Description: "Claimed reward: " + reward.Name,
+			RewardID:    &rewardID,
+		}
+		return tx.Create(&history).Error
+	})
 }

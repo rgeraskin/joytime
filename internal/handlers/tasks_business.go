@@ -16,7 +16,7 @@ func (h *APIHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -36,7 +36,7 @@ func (h *APIHandler) handleTasksByFamily(w http.ResponseWriter, r *http.Request)
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -90,6 +90,11 @@ func (h *APIHandler) createTask(w http.ResponseWriter, r *http.Request, authCtx 
 	var task models.Tasks
 	if err := h.decodeJSON(r, &task); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
+		return
+	}
+
+	if validationErrors := h.ValidateTaskCreate(&task); len(validationErrors) > 0 {
+		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
 		return
 	}
 
@@ -159,7 +164,7 @@ func (h *APIHandler) updateTask(w http.ResponseWriter, r *http.Request, authCtx 
 			h.respondError(w, http.StatusForbidden, "Only parents can update tasks")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
 			return
 		}
@@ -178,7 +183,7 @@ func (h *APIHandler) deleteTask(w http.ResponseWriter, r *http.Request, authCtx 
 			h.respondError(w, http.StatusForbidden, "Only parents can delete tasks")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
 			return
 		}
@@ -197,8 +202,15 @@ func (h *APIHandler) completeTask(w http.ResponseWriter, r *http.Request, authCt
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
+			return
+		}
+		if errors.Is(err, domain.ErrTaskAlreadyCompleted) ||
+			errors.Is(err, domain.ErrTaskInvalidForReview) ||
+			errors.Is(err, domain.ErrTaskInvalidForApprove) ||
+			errors.Is(err, domain.ErrNoAssignedChild) {
+			h.respondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		h.respondError(w, http.StatusInternalServerError, "Failed to complete task")

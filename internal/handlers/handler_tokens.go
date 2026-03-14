@@ -18,7 +18,7 @@ func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
 		h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			authCtx := GetAuthContext(r)
 			if authCtx == nil {
-				h.respondError(w, http.StatusInternalServerError, "Service context not found")
+				h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 				return
 			}
 			h.createTokenTransaction(w, r, authCtx)
@@ -32,7 +32,7 @@ func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -57,7 +57,7 @@ func (h *APIHandler) handleTokenHistory(w http.ResponseWriter, r *http.Request) 
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -74,7 +74,7 @@ func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Reque
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -96,18 +96,19 @@ func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Reque
 
 
 func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-	// Structure for adding tokens to users
-	var request struct {
-		UserID      string `json:"user_id"`
-		Amount      int    `json:"amount"`
-		Type        string `json:"type"`
-		Description string `json:"description"`
-		TaskID      *uint  `json:"task_id,omitempty"`
-		RewardID    *uint  `json:"reward_id,omitempty"`
-	}
-
+	var request TokenAddRequest
 	if err := h.decodeJSON(r, &request); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
+		return
+	}
+
+	if validationErrors := h.ValidateTokenAddRequest(&request); len(validationErrors) > 0 {
+		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+		return
+	}
+
+	if request.UserID == "" {
+		h.respondError(w, http.StatusBadRequest, ErrUserIDRequiredField)
 		return
 	}
 
@@ -144,7 +145,7 @@ func (h *APIHandler) getUserTokens(w http.ResponseWriter, r *http.Request, authC
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
 			return
 		}
@@ -156,17 +157,14 @@ func (h *APIHandler) getUserTokens(w http.ResponseWriter, r *http.Request, authC
 }
 
 func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
-	// Structure for updating user tokens
-	var update struct {
-		Amount      int    `json:"amount"`
-		Type        string `json:"type"`
-		Description string `json:"description"`
-		TaskID      *uint  `json:"task_id,omitempty"`
-		RewardID    *uint  `json:"reward_id,omitempty"`
-	}
-
+	var update TokenAddRequest
 	if err := h.decodeJSON(r, &update); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
+		return
+	}
+
+	if validationErrors := h.ValidateTokenAddRequest(&update); len(validationErrors) > 0 {
+		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
 		return
 	}
 
@@ -185,7 +183,7 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 			h.respondError(w, http.StatusForbidden, "Only parents can update user tokens")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
 			return
 		}
@@ -204,8 +202,7 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 }
 
 func (h *APIHandler) getTokenHistory(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-	// For family-wide token history, we need to get history for the current user
-	// TODO: Implement family-wide token history when service method is available
+	// Returns the current user's own token history
 	history, err := h.services.TokenService.GetTokenHistory(r.Context(), authCtx, authCtx.UserID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUnauthorized) {
@@ -226,7 +223,7 @@ func (h *APIHandler) getUserTokenHistory(w http.ResponseWriter, r *http.Request,
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
 			return
 		}

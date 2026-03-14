@@ -87,9 +87,12 @@ func (s *FamilyService) CreateFamily(ctx context.Context, family *models.Familie
 	return s.db.WithContext(ctx).Create(family).Error
 }
 
-// CreateFamilyWithUID creates a family with a specific UID (for testing/admin use)
-func (s *FamilyService) CreateFamilyWithUID(ctx context.Context, family *models.Families) error {
-	return s.db.WithContext(ctx).Create(family).Error
+// CreateFamilyWithAuth creates a family with authorization check
+func (s *FamilyService) CreateFamilyWithAuth(ctx context.Context, authCtx *AuthContext, family *models.Families) error {
+	if err := s.auth.RequirePermission(authCtx, "family", "create", authCtx.FamilyUID); err != nil {
+		return err
+	}
+	return s.CreateFamily(ctx, family)
 }
 
 // UpdateFamily updates family information with business rule enforcement

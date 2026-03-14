@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/database"
@@ -54,35 +58,34 @@ func main() {
 		return
 	}
 
-	// Start HTTP API server
+	// Start HTTP API server with graceful shutdown
 	apiServer := handlers.SetupAPI(db, logger)
-	// go func() {
-	// 	logger.Info("Starting HTTP API server", "port", handlers.PORT)
-	// 	if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-	// 		logger.Fatal("HTTP API server error", "error", err)
-	// 	}
-	// }()
-	logger.Info("Starting HTTP API server", "address", handlers.ADDRESS)
-	if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatal("HTTP API server error", "error", err)
+
+	go func() {
+		logger.Info("Starting HTTP API server", "address", handlers.ADDRESS)
+		if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("HTTP API server error", "error", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := apiServer.Shutdown(ctx); err != nil {
+		logger.Error("Server forced to shutdown", "error", err)
 	}
 
-	// logger.Info("Starting dispatcher...")
-	// dsp := echotron.NewDispatcher(config.Token, func(chatID int64) echotron.Bot {
-	// 	b := newBot(chatID, db, config.Token)
-	// 	if b == nil {
-	// 		logger.Fatal("Failed to create bot instance")
-	// 	}
-	// 	return b
-	// })
+	// Close database connection
+	sqlDB, err := db.DB()
+	if err == nil {
+		sqlDB.Close()
+	}
 
-	// // Add error handling for the polling
-	// for {
-	// 	logger.Info("Polling...")
-	// 	if err := dsp.Poll(); err != nil {
-	// 		logger.Error("Polling error", "error", err)
-	// 	}
-	// 	logger.Info("Reconnecting in 5 seconds...")
-	// 	time.Sleep(5 * time.Second)
-	// }
+	logger.Info("Server stopped")
 }

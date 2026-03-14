@@ -13,14 +13,16 @@ type TaskService struct {
 	db     *gorm.DB
 	logger *log.Logger
 	auth   *CasbinAuthService
+	tokens *TokenService
 }
 
 // NewTaskService creates a new task service
-func NewTaskService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *TaskService {
+func NewTaskService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService, tokens *TokenService) *TaskService {
 	return &TaskService{
 		db:     db,
 		logger: logger,
 		auth:   auth,
+		tokens: tokens,
 	}
 }
 
@@ -59,7 +61,9 @@ func (s *TaskService) GetTasksForFamily(
 	return tasks, err
 }
 
-// CompleteTask marks a task as completed
+// CompleteTask marks a task as completed and awards tokens when parent approves.
+// Child submits for review (new → check), parent approves (check/new → completed + tokens).
+// Task status update and token award are wrapped in a single transaction.
 func (s *TaskService) CompleteTask(
 	ctx context.Context,
 	authCtx *AuthContext,
@@ -79,19 +83,63 @@ func (s *TaskService) CompleteTask(
 		return nil, err
 	}
 
-	// Business Rule: Children can complete tasks, parents can mark them as completed
-	// Both roles can perform this action, but with different implications
-
-	if authCtx.UserRole == RoleChild {
-		// Child marks task as "check" - needs parent verification
-		task.Status = "check"
-	} else {
-		// Parent can directly mark as completed
-		task.Status = "completed"
+	// Validate status transitions
+	if task.Status == "completed" {
+		return nil, ErrTaskAlreadyCompleted
 	}
 
-	err = s.db.WithContext(ctx).Save(&task).Error
-	return &task, err
+	if authCtx.UserRole == RoleChild {
+		// Child marks task as "check" — needs parent verification
+		if task.Status != "new" {
+			return nil, ErrTaskInvalidForReview
+		}
+		task.Status = "check"
+		// Record which child submitted for review
+		task.AssignedToUserID = authCtx.UserID
+
+		if err := s.db.WithContext(ctx).Save(&task).Error; err != nil {
+			return nil, err
+		}
+		return &task, nil
+	}
+
+	// Parent approves — mark as completed and award tokens to the assigned child
+	if task.Status != "check" && task.Status != "new" {
+		return nil, ErrTaskInvalidForApprove
+	}
+
+	if task.AssignedToUserID == "" {
+		return nil, ErrNoAssignedChild
+	}
+
+	// Wrap status update + token award in a single transaction
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		task.Status = "completed"
+		if err := tx.Save(&task).Error; err != nil {
+			return err
+		}
+
+		if task.Tokens > 0 {
+			taskID := task.ID
+			if err := s.tokens.addTokensInTx(
+				tx,
+				task.AssignedToUserID,
+				task.Tokens,
+				"task_completed",
+				"Completed task: "+task.Name,
+				&taskID,
+				nil,
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &task, nil
 }
 
 // DeleteTask deletes a task with business rule enforcement
@@ -148,14 +196,14 @@ func (s *TaskService) UpdateTask(
 	switch authCtx.UserRole {
 	case RoleParent:
 		// Parents can update all task fields
-		updateFields.AddFieldIfNotEmpty("name", updates.Name)
-		updateFields.AddFieldIfNotEmpty("description", updates.Description)
-		updateFields.AddFieldIfNotEmpty("tokens", updates.Tokens)
-		updateFields.AddFieldIfNotEmpty("status", updates.Status)
+		updateFields.AddStringIfNotEmpty("name", updates.Name)
+		updateFields.AddStringIfNotEmpty("description", updates.Description)
+		updateFields.AddIntIfSet("tokens", updates.Tokens)
+		updateFields.AddStringIfNotEmpty("status", updates.Status)
 		allowedFields = []string{"name", "description", "tokens", "status"}
 	case RoleChild:
 		// Children can only update status (for marking completion)
-		updateFields.AddFieldIfNotEmpty("status", updates.Status)
+		updateFields.AddStringIfNotEmpty("status", updates.Status)
 		allowedFields = []string{"status"}
 	}
 

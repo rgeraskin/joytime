@@ -73,9 +73,9 @@ func (s *RewardService) UpdateReward(
 	}
 
 	updateFields := make(UpdateFields)
-	updateFields.AddFieldIfNotEmpty("name", updates.Name)
-	updateFields.AddFieldIfNotEmpty("description", updates.Description)
-	updateFields.AddFieldIfNotEmpty("tokens", updates.Tokens)
+	updateFields.AddStringIfNotEmpty("name", updates.Name)
+	updateFields.AddStringIfNotEmpty("description", updates.Description)
+	updateFields.AddIntIfSet("tokens", updates.Tokens)
 
 	if len(updateFields) > 0 {
 		err = s.db.WithContext(ctx).

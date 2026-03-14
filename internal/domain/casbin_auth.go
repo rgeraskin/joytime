@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/casbin/casbin/v2"
@@ -179,7 +180,7 @@ func (cas *CasbinAuthService) getUserRole(userID string) (string, error) {
 	var user models.Users
 	err := cas.db.Where("user_id = ?", userID).First(&user).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("user with ID %s not found", userID)
 		}
 		return "", fmt.Errorf("failed to query user role: %w", err)

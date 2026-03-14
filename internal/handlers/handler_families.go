@@ -15,7 +15,7 @@ func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Auth context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -34,7 +34,7 @@ func (h *APIHandler) handleFamily(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Auth context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -86,8 +86,12 @@ func (h *APIHandler) createFamily(
 		return
 	}
 
-	// Service layer now handles UID generation automatically
-	err := h.services.FamilyService.CreateFamily(r.Context(), &family)
+	if validationErrors := h.ValidateFamilyCreate(&family); len(validationErrors) > 0 {
+		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+		return
+	}
+
+	err := h.services.FamilyService.CreateFamilyWithAuth(r.Context(), authCtx, &family)
 	if err != nil {
 		h.respondError(w, http.StatusInternalServerError, "Failed to create family")
 		return
@@ -108,7 +112,7 @@ func (h *APIHandler) getFamily(
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrFamilyNotFound)
 			return
 		}
@@ -137,7 +141,7 @@ func (h *APIHandler) updateFamily(
 			h.respondError(w, http.StatusForbidden, "Only parents can update family information")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrFamilyNotFound)
 			return
 		}

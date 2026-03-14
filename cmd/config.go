@@ -16,9 +16,7 @@ func NewConfig() (*Config, error) {
 	config := &Config{}
 
 	logger.Debug("Loading config...")
-	if err := config.load(); err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
+	config.load()
 
 	logger.Debug("Validating config...")
 	if err := config.validate(); err != nil {
@@ -29,17 +27,13 @@ func NewConfig() (*Config, error) {
 	return config, nil
 }
 
-func (c *Config) load() error {
+func (c *Config) load() {
 	c.Token = os.Getenv("TOKEN")
 	c.DB.User = os.Getenv("PGUSER")
 	c.DB.Password = os.Getenv("PGPASSWORD")
 	c.DB.Host = os.Getenv("PGHOST")
 	c.DB.Port = os.Getenv("PGPORT")
 	c.DB.Database = os.Getenv("PGDATABASE")
-	if err := c.validate(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *Config) validate() error {

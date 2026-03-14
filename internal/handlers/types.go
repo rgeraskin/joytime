@@ -1,13 +1,11 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/domain"
-	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -46,6 +44,7 @@ type SuccessResponse struct {
 
 // TokenAddRequest represents request for adding/subtracting tokens
 type TokenAddRequest struct {
+	UserID      string `json:"user_id,omitempty"`
 	Amount      int    `json:"amount"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
@@ -93,29 +92,6 @@ func (h *APIHandler) decodeJSON(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
-// validateFamily checks if a family exists
-func (h *APIHandler) validateFamily(ctx context.Context, familyUID string) (*models.Families, error) {
-	var family models.Families
-	if err := h.db.WithContext(ctx).Where("uid = ?", familyUID).First(&family).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, err
-		}
-		return nil, err
-	}
-	return &family, nil
-}
-
-// validateUser checks if a user exists
-func (h *APIHandler) validateUser(ctx context.Context, userID string) (*models.Users, error) {
-	var user models.Users
-	if err := h.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, err
-		}
-		return nil, err
-	}
-	return &user, nil
-}
 
 
 

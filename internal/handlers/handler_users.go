@@ -14,7 +14,7 @@ func (h *APIHandler) handleUsers(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -33,7 +33,7 @@ func (h *APIHandler) handleUser(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
 		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, "Service context not found")
+			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
 			return
 		}
 
@@ -82,7 +82,7 @@ func (h *APIHandler) getUser(w http.ResponseWriter, r *http.Request, authCtx *do
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
 			return
 		}
@@ -106,7 +106,7 @@ func (h *APIHandler) updateUser(w http.ResponseWriter, r *http.Request, authCtx 
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
 			return
 		}
@@ -124,7 +124,7 @@ func (h *APIHandler) deleteUser(w http.ResponseWriter, r *http.Request, authCtx 
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
 			return
 		}

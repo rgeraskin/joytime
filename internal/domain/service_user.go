@@ -98,16 +98,20 @@ func (s *UserService) UpdateUser(
 	updateFields := make(UpdateFields)
 	allowedFields := []string{}
 
-	// Children can only update their name, parents can update name and role
+	// Children can only update their name, parents can update name and role of others
 	if authCtx.UserRole == RoleChild && authCtx.UserID == userID {
 		// Children can only update their own name
-		updateFields.AddFieldIfNotEmpty("name", updates.Name)
+		updateFields.AddStringIfNotEmpty("name", updates.Name)
 		allowedFields = []string{"name"}
 	} else if authCtx.UserRole == RoleParent {
-		// Parents can update name and role for themselves and others
-		updateFields.AddFieldIfNotEmpty("name", updates.Name)
-		updateFields.AddFieldIfNotEmpty("role", updates.Role)
-		allowedFields = []string{"name", "role"}
+		updateFields.AddStringIfNotEmpty("name", updates.Name)
+		if authCtx.UserID != userID {
+			// Parents can change role of OTHER users (not themselves)
+			updateFields.AddStringIfNotEmpty("role", updates.Role)
+			allowedFields = []string{"name", "role"}
+		} else {
+			allowedFields = []string{"name"}
+		}
 	}
 
 	// Apply updates only if there are fields to update
