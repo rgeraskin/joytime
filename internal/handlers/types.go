@@ -19,12 +19,7 @@ type APIHandler struct {
 }
 
 // NewAPIHandler creates a new API handler with dependencies
-func NewAPIHandler(database *gorm.DB, logger *log.Logger) *APIHandler {
-	services, err := domain.NewServices(database, logger)
-	if err != nil {
-		logger.Fatal("Failed to initialize services with Casbin", "error", err)
-	}
-
+func NewAPIHandler(services *domain.Services, logger *log.Logger) *APIHandler {
 	return &APIHandler{
 		logger:   logger,
 		services: services,

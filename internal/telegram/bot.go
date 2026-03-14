@@ -1,0 +1,321 @@
+package telegram
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/rgeraskin/joytime/internal/domain"
+	"github.com/rgeraskin/joytime/internal/models"
+	tele "gopkg.in/telebot.v4"
+	"gorm.io/gorm"
+)
+
+// Input states for multi-step conversation flows
+const (
+	stateJoinFamily       = "join_family"
+	stateAddTaskName      = "add_task_name"
+	stateAddTaskTokens    = "add_task_tokens"
+	stateEditTaskID       = "edit_task_id"
+	stateEditTaskTokens   = "edit_task_tokens"
+	stateDeleteTaskID     = "delete_task_id"
+	stateAddRewardName    = "add_reward_name"
+	stateAddRewardTokens  = "add_reward_tokens"
+	stateEditRewardID     = "edit_reward_id"
+	stateEditRewardTokens = "edit_reward_tokens"
+	stateDeleteRewardID   = "delete_reward_id"
+	stateTaskDone         = "task_done"
+	stateRewardClaim      = "reward_claim"
+	stateReviewTask       = "review_task"
+)
+
+// Bot wraps the Telegram bot with domain services
+type Bot struct {
+	bot      *tele.Bot
+	services *domain.Services
+	logger   *log.Logger
+}
+
+// New creates and configures a new Telegram bot
+func New(token string, services *domain.Services, logger *log.Logger) (*Bot, error) {
+	pref := tele.Settings{
+		Token:  token,
+		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+	}
+
+	b, err := tele.NewBot(pref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create telegram bot: %w", err)
+	}
+
+	bot := &Bot{
+		bot:      b,
+		services: services,
+		logger:   logger,
+	}
+	bot.registerHandlers()
+	return bot, nil
+}
+
+// Start starts the bot polling loop (blocking)
+func (b *Bot) Start() {
+	b.logger.Info("Starting Telegram bot")
+	b.bot.Start()
+}
+
+// Stop gracefully stops the bot
+func (b *Bot) Stop() {
+	b.bot.Stop()
+}
+
+func (b *Bot) registerHandlers() {
+	b.bot.Handle("/start", b.handleStart)
+	b.bot.Handle(tele.OnCallback, b.handleCallback)
+	b.bot.Handle(tele.OnText, b.handleText)
+}
+
+// handleStart is the entry point for all conversations
+func (b *Bot) handleStart(c tele.Context) error {
+	b.clearState(c.Sender().ID)
+
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error finding user", err)
+	}
+
+	if user == nil {
+		return b.showRoleSelection(c)
+	}
+
+	// User exists but hasn't joined a family yet
+	if user.FamilyUID == "" {
+		return b.showFamilySetup(c, user.Role)
+	}
+
+	switch user.Role {
+	case string(domain.RoleParent):
+		return b.showParentMenu(c)
+	case string(domain.RoleChild):
+		return b.showChildMenu(c)
+	}
+
+	return b.internalError(c, "Unknown user role", fmt.Errorf("role: %s", user.Role))
+}
+
+// handleCallback routes all inline keyboard button presses
+func (b *Bot) handleCallback(c tele.Context) error {
+	data := c.Callback().Data
+	_ = c.Respond()
+	b.clearState(c.Sender().ID)
+
+	switch data {
+	// Registration
+	case "role_parent":
+		return b.onSelectRole(c, string(domain.RoleParent))
+	case "role_child":
+		return b.onSelectRole(c, string(domain.RoleChild))
+	case "family_create":
+		return b.onFamilyCreate(c)
+	case "family_join":
+		return b.onFamilyJoinPrompt(c)
+
+	// Parent navigation
+	case "parent_tasks":
+		return b.showTasks(c)
+	case "parent_rewards":
+		return b.showRewards(c)
+	case "parent_review":
+		return b.showPendingReview(c)
+	case "back_parent":
+		return b.showParentMenu(c)
+
+	// Task CRUD
+	case "task_add":
+		return b.onAddTaskPrompt(c)
+	case "task_edit":
+		return b.onEditTaskPrompt(c)
+	case "task_delete":
+		return b.onDeleteTaskPrompt(c)
+
+	// Reward CRUD
+	case "reward_add":
+		return b.onAddRewardPrompt(c)
+	case "reward_edit":
+		return b.onEditRewardPrompt(c)
+	case "reward_delete":
+		return b.onDeleteRewardPrompt(c)
+
+	// Child actions
+	case "child_task_done":
+		return b.onTaskDonePrompt(c)
+	case "child_reward_claim":
+		return b.onRewardClaimPrompt(c)
+	case "back_child":
+		return b.showChildMenu(c)
+	}
+
+	b.logger.Warn("Unknown callback data", "data", data)
+	return nil
+}
+
+// handleText routes text input based on user's current input state
+func (b *Bot) handleText(c tele.Context) error {
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error finding user", err)
+	}
+	if user == nil {
+		return c.Send("Для начала нажми /start")
+	}
+
+	text := strings.TrimSpace(c.Text())
+	state := user.InputState
+	inputCtx := user.InputContext
+
+	switch state {
+	// Registration
+	case stateJoinFamily:
+		return b.onFamilyJoinText(c, text)
+
+	// Task management (parent)
+	case stateAddTaskName:
+		return b.onAddTaskName(c, text)
+	case stateAddTaskTokens:
+		return b.onAddTaskTokens(c, text, inputCtx)
+	case stateEditTaskID:
+		return b.onEditTaskID(c, text)
+	case stateEditTaskTokens:
+		return b.onEditTaskTokens(c, text, inputCtx)
+	case stateDeleteTaskID:
+		return b.onDeleteTaskID(c, text)
+
+	// Reward management (parent)
+	case stateAddRewardName:
+		return b.onAddRewardName(c, text)
+	case stateAddRewardTokens:
+		return b.onAddRewardTokens(c, text, inputCtx)
+	case stateEditRewardID:
+		return b.onEditRewardID(c, text)
+	case stateEditRewardTokens:
+		return b.onEditRewardTokens(c, text, inputCtx)
+	case stateDeleteRewardID:
+		return b.onDeleteRewardID(c, text)
+
+	// Child actions
+	case stateTaskDone:
+		return b.onTaskDoneText(c, text)
+	case stateRewardClaim:
+		return b.onRewardClaimText(c, text)
+
+	// Parent review
+	case stateReviewTask:
+		return b.onReviewTaskText(c, text)
+	}
+
+	return c.Send("Не понимаю. Нажми /start для начала")
+}
+
+// --- Helpers ---
+
+func bgCtx() context.Context {
+	return context.Background()
+}
+
+func makeUserID(tgID int64) string {
+	return fmt.Sprintf("user_%d", tgID)
+}
+
+func extractName(u *tele.User) string {
+	if u.FirstName != "" && u.LastName != "" {
+		return u.FirstName + " " + u.LastName
+	}
+	if u.FirstName != "" {
+		return u.FirstName
+	}
+	if u.Username != "" {
+		return u.Username
+	}
+	return fmt.Sprintf("User %d", u.ID)
+}
+
+func (b *Bot) findUser(tgID int64) (*models.Users, error) {
+	user, err := b.services.UserService.FindUser(bgCtx(), makeUserID(tgID))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
+func (b *Bot) authCtx(tgID int64) (*domain.AuthContext, error) {
+	return b.services.UserService.CreateAuthContext(bgCtx(), makeUserID(tgID))
+}
+
+func (b *Bot) clearState(tgID int64) {
+	_ = b.services.UserService.SetInputState(bgCtx(), makeUserID(tgID), "", "")
+}
+
+func (b *Bot) setState(tgID int64, state, inputCtx string) error {
+	return b.services.UserService.SetInputState(bgCtx(), makeUserID(tgID), state, inputCtx)
+}
+
+func (b *Bot) internalError(c tele.Context, msg string, err error) error {
+	b.logger.Error(msg, "error", err, "tg_id", c.Sender().ID)
+	return c.Send("Внутренняя ошибка. Попробуй /start")
+}
+
+func (b *Bot) notifyParents(familyUID string, excludeTgID int64, message string) {
+	users, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), familyUID, string(domain.RoleParent))
+	if err != nil {
+		b.logger.Error("Failed to find parents for notification", "error", err)
+		return
+	}
+	for _, u := range users {
+		tgIDStr := strings.TrimPrefix(u.UserID, "user_")
+		tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
+		if err != nil || tgID == excludeTgID {
+			continue
+		}
+		if _, err := b.bot.Send(&tele.User{ID: tgID}, message); err != nil {
+			b.logger.Error("Failed to notify parent", "error", err, "tg_id", tgID)
+		}
+	}
+}
+
+func formatList(header string, items []string) string {
+	var sb strings.Builder
+	sb.WriteString(header)
+	sb.WriteString(":\n\n")
+	if len(items) == 0 {
+		sb.WriteString("Пока пусто 😔")
+		return sb.String()
+	}
+	for i, item := range items {
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, item))
+	}
+	return sb.String()
+}
+
+func inlineKeyboard(rows ...[]tele.InlineButton) *tele.ReplyMarkup {
+	return &tele.ReplyMarkup{
+		InlineKeyboard: rows,
+	}
+}
+
+func btnRow(buttons ...tele.InlineButton) []tele.InlineButton {
+	return buttons
+}
+
+func btn(text, data string) tele.InlineButton {
+	return tele.InlineButton{Text: text, Data: data}
+}
+
+func parseNumber(text string) (int, error) {
+	return strconv.Atoi(strings.TrimSpace(text))
+}

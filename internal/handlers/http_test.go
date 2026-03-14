@@ -118,7 +118,11 @@ func setupTestDBConnection() error {
 		return err
 	}
 
-	testHandler = NewAPIHandler(testDB, logger)
+	services, err := domain.NewServices(testDB, logger)
+	if err != nil {
+		return err
+	}
+	testHandler = NewAPIHandler(services, logger)
 	return nil
 }
 

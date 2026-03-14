@@ -11,7 +11,9 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/database"
+	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/handlers"
+	"github.com/rgeraskin/joytime/internal/telegram"
 )
 
 func main() {
@@ -56,8 +58,14 @@ func main() {
 		return
 	}
 
+	// Initialize domain services (shared by HTTP API and Telegram bot)
+	services, err := domain.NewServices(db, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize services", "error", err)
+	}
+
 	// Start HTTP API server with graceful shutdown
-	apiServer := handlers.SetupAPI(db, logger)
+	apiServer := handlers.SetupAPI(services, logger)
 
 	go func() {
 		logger.Info("Starting HTTP API server", "address", handlers.ADDRESS)
@@ -66,12 +74,23 @@ func main() {
 		}
 	}()
 
+	// Start Telegram bot
+	tgBot, err := telegram.New(config.Token, services, logger)
+	if err != nil {
+		logger.Fatal("Failed to create Telegram bot", "error", err)
+	}
+	go tgBot.Start()
+
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	logger.Info("Shutting down server...")
+
+	// Stop Telegram bot
+	tgBot.Stop()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

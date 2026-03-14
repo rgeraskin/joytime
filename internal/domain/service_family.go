@@ -62,6 +62,14 @@ func (s *FamilyService) generateUniqueFamilyUID(ctx context.Context) (string, er
 	return "", fmt.Errorf("failed to generate unique family UID after %d attempts", maxAttempts)
 }
 
+// FindFamily retrieves a family by UID without authorization checks.
+// Used during Telegram registration to verify family existence before joining.
+func (s *FamilyService) FindFamily(ctx context.Context, familyUID string) (*models.Families, error) {
+	var family models.Families
+	err := s.db.WithContext(ctx).Where("uid = ?", familyUID).First(&family).Error
+	return &family, err
+}
+
 // GetFamily retrieves family information with business rule enforcement
 func (s *FamilyService) GetFamily(
 	ctx context.Context,

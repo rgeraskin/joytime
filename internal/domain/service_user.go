@@ -159,6 +159,51 @@ func (s *UserService) DeleteUser(
 	return s.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.Users{}).Error
 }
 
+// FindUser retrieves a user by ID without authorization checks.
+// Used internally by the Telegram bot for user lookup during startup.
+func (s *UserService) FindUser(ctx context.Context, userID string) (*models.Users, error) {
+	var user models.Users
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error
+	return &user, err
+}
+
+// CreateUser creates a new user without authorization checks.
+// Used during Telegram registration when no auth context exists yet.
+func (s *UserService) CreateUser(ctx context.Context, user *models.Users) error {
+	return s.db.WithContext(ctx).Create(user).Error
+}
+
+// SetInputState updates the user's conversation input state.
+// Used by the Telegram bot for multi-step conversation flows.
+func (s *UserService) SetInputState(ctx context.Context, userID, state, inputContext string) error {
+	return s.db.WithContext(ctx).
+		Model(&models.Users{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]any{
+			"input_state":   state,
+			"input_context": inputContext,
+		}).Error
+}
+
+// UpdateFamilyUID updates a user's family UID.
+// Used during Telegram registration when a user joins a family.
+func (s *UserService) UpdateFamilyUID(ctx context.Context, userID, familyUID string) error {
+	return s.db.WithContext(ctx).
+		Model(&models.Users{}).
+		Where("user_id = ?", userID).
+		Update("family_uid", familyUID).Error
+}
+
+// FindFamilyUsersByRole retrieves users in a family filtered by role.
+// Used internally for notifications (e.g., notifying parents when a child completes a task).
+func (s *UserService) FindFamilyUsersByRole(ctx context.Context, familyUID, role string) ([]models.Users, error) {
+	var users []models.Users
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ? AND role = ?", familyUID, role).
+		Find(&users).Error
+	return users, err
+}
+
 // CreateAuthContext creates an authentication context for a user
 func (s *UserService) CreateAuthContext(
 	ctx context.Context,
