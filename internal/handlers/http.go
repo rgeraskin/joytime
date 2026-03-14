@@ -38,7 +38,6 @@ func SetupAPI(database *gorm.DB, _logger *log.Logger) *http.Server {
 	// Special endpoints that might not need auth (like health checks, family registration)
 	mux.HandleFunc("/api/v1/health", handler.handleHealth)
 
-
 	return &http.Server{
 		Addr:    ADDRESS,
 		Handler: mux,
@@ -57,5 +56,3 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"service": "joytime-api",
 	})
 }
-
-

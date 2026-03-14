@@ -52,6 +52,28 @@ func (s *RewardService) GetRewardsForFamily(
 	return rewards, err
 }
 
+// GetReward retrieves a single reward by family and name
+func (s *RewardService) GetReward(
+	ctx context.Context,
+	authCtx *AuthContext,
+	familyUID, rewardName string,
+) (*models.Rewards, error) {
+	if err := s.auth.RequirePermission(authCtx, "rewards", "read", familyUID); err != nil {
+		return nil, err
+	}
+
+	var reward models.Rewards
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ? AND name = ?", familyUID, rewardName).
+		First(&reward).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &reward, nil
+}
+
 // UpdateReward updates a reward with business rule enforcement
 func (s *RewardService) UpdateReward(
 	ctx context.Context,

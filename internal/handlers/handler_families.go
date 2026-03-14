@@ -1,23 +1,17 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
-	"gorm.io/gorm"
 )
 
 // Family endpoints
 func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		switch r.Method {
 		case http.MethodGet:
@@ -33,10 +27,6 @@ func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleFamily(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/families/")
 		if familyUID == "" {
@@ -60,18 +50,12 @@ func (h *APIHandler) listFamilies(
 	r *http.Request,
 	authCtx *domain.AuthContext,
 ) {
-	// For families, user can only see their own family
 	family, err := h.services.FamilyService.GetFamily(r.Context(), authCtx, authCtx.FamilyUID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve family")
+		h.respondServiceError(w, err, "failed to retrieve family")
 		return
 	}
 
-	// Return as array for consistency with list endpoints
 	h.respondSuccess(w, http.StatusOK, []models.Families{*family})
 }
 
@@ -93,7 +77,7 @@ func (h *APIHandler) createFamily(
 
 	err := h.services.FamilyService.CreateFamilyWithAuth(r.Context(), authCtx, &family)
 	if err != nil {
-		h.respondError(w, http.StatusInternalServerError, "Failed to create family")
+		h.respondServiceError(w, err, "failed to create family")
 		return
 	}
 
@@ -108,15 +92,7 @@ func (h *APIHandler) getFamily(
 ) {
 	family, err := h.services.FamilyService.GetFamily(r.Context(), authCtx, familyUID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrFamilyNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve family")
+		h.respondServiceError(w, err, "failed to retrieve family")
 		return
 	}
 
@@ -137,15 +113,7 @@ func (h *APIHandler) updateFamily(
 
 	family, err := h.services.FamilyService.UpdateFamily(r.Context(), authCtx, familyUID, &updates)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can update family information")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrFamilyNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to update family")
+		h.respondServiceError(w, err, "failed to update family")
 		return
 	}
 

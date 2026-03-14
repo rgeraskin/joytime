@@ -1,36 +1,21 @@
 package handlers
 
 const (
-	// Platforms
-	PlatformTelegram = "telegram"
-	PlatformWeb      = "web"
-	PlatformMobile   = "mobile"
-
 	// HTTP Content-Type
 	ContentTypeJSON = "application/json"
 
 	// Error messages
-	ErrFamilyNotFound         = "family not found"
-	ErrUserNotFound           = "user not found"
 	ErrEntityNotFound         = "entity not found"
-	ErrUserTokensNotFound     = "user tokens not found"
 	ErrInvalidRole            = "invalid role: parent or child only"
 	ErrInsufficientTokens     = "insufficient tokens"
 	ErrMethodNotAllowed       = "method not allowed"
-	ErrNotImplemented         = "not implemented"
-	ErrMissingRequiredFields  = "missing required fields"
-	ErrRestrictedFields       = "restricted fields"
-	ErrInvalidURLPath         = "invalid URL path"
+	ErrInvalidJSONFormat      = "invalid JSON format"
+	ErrFamilyUIDRequired      = "family UID is required"
+	ErrUserIDRequired         = "user ID is required"
+	ErrInvalidPlatform        = "invalid platform"
+	ErrInvalidTokenType       = "invalid token type"
 	ErrInvalidEntityEncoding  = "invalid entity name encoding"
-	ErrInvalidJSONFormat      = "Invalid JSON format"
-	ErrFamilyUIDRequired      = "Family UID is required"
-	ErrUserIDRequired         = "User ID is required"
-	ErrInvalidPlatform        = "Invalid platform"
-	ErrInvalidTokenType       = "Invalid token type"
-	ErrNameRequired           = "Name is required"
-	ErrRoleRequired           = "Role is required"
-	ErrUserIDRequiredField    = "UserID is required"
-	ErrFamilyUIDRequiredField = "FamilyUID is required"
-	ErrNameOrUIDRequired      = "Name or UID is required"
-	ErrAuthContextNotFound    = "Auth context not found"
+	ErrNameRequired           = "name is required"
+	ErrUserIDRequiredField    = "user_id is required"
+	ErrFamilyUIDRequiredField = "family_uid is required"
 )

@@ -1,24 +1,18 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
-	"gorm.io/gorm"
 )
 
 // Reward endpoints
 func (h *APIHandler) handleRewards(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		switch r.Method {
 		case http.MethodPost:
@@ -32,24 +26,17 @@ func (h *APIHandler) handleRewards(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
-		// Extract familyUID from path
 		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/rewards/")
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)
 			return
 		}
 
-		// Split path to check for reward name (for individual reward operations)
 		parts := strings.SplitN(familyUID, "/", 2)
 		familyUID = parts[0]
 
 		if len(parts) == 2 && parts[1] != "" {
-			// Individual reward operation: /rewards/{familyUID}/{rewardName}
 			rewardName, err := url.QueryUnescape(parts[1])
 			if err != nil {
 				h.respondError(w, http.StatusBadRequest, ErrInvalidEntityEncoding)
@@ -67,7 +54,6 @@ func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Reques
 				h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
 			}
 		} else {
-			// Family rewards operation: /rewards/{familyUID}
 			h.getFamilyRewards(w, r, authCtx, familyUID)
 		}
 	})(w, r)
@@ -87,11 +73,7 @@ func (h *APIHandler) createReward(w http.ResponseWriter, r *http.Request, authCt
 
 	err := h.services.RewardService.CreateReward(r.Context(), authCtx, &reward)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can create rewards")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to create reward")
+		h.respondServiceError(w, err, "failed to create reward")
 		return
 	}
 
@@ -101,11 +83,7 @@ func (h *APIHandler) createReward(w http.ResponseWriter, r *http.Request, authCt
 func (h *APIHandler) getFamilyRewards(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID string) {
 	rewards, err := h.services.RewardService.GetRewardsForFamily(r.Context(), authCtx, familyUID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve rewards")
+		h.respondServiceError(w, err, "failed to retrieve rewards")
 		return
 	}
 
@@ -113,24 +91,13 @@ func (h *APIHandler) getFamilyRewards(w http.ResponseWriter, r *http.Request, au
 }
 
 func (h *APIHandler) getReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, rewardName string) {
-	rewards, err := h.services.RewardService.GetRewardsForFamily(r.Context(), authCtx, familyUID)
+	reward, err := h.services.RewardService.GetReward(r.Context(), authCtx, familyUID, rewardName)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve rewards")
+		h.respondServiceError(w, err, "failed to retrieve reward")
 		return
 	}
 
-	for _, reward := range rewards {
-		if reward.Name == rewardName {
-			h.respondSuccess(w, http.StatusOK, reward)
-			return
-		}
-	}
-
-	h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
+	h.respondSuccess(w, http.StatusOK, reward)
 }
 
 func (h *APIHandler) updateReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, rewardName string) {
@@ -142,15 +109,7 @@ func (h *APIHandler) updateReward(w http.ResponseWriter, r *http.Request, authCt
 
 	reward, err := h.services.RewardService.UpdateReward(r.Context(), authCtx, familyUID, rewardName, &updates)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can update rewards")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to update reward")
+		h.respondServiceError(w, err, "failed to update reward")
 		return
 	}
 
@@ -160,15 +119,7 @@ func (h *APIHandler) updateReward(w http.ResponseWriter, r *http.Request, authCt
 func (h *APIHandler) deleteReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, rewardName string) {
 	err := h.services.RewardService.DeleteReward(r.Context(), authCtx, familyUID, rewardName)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can delete rewards")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to delete reward")
+		h.respondServiceError(w, err, "failed to delete reward")
 		return
 	}
 

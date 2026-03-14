@@ -39,13 +39,6 @@ func parseSuccessResponse(w *httptest.ResponseRecorder, target any) error {
 	return json.Unmarshal(dataBytes, target)
 }
 
-// parseErrorResponse parses an error response
-func parseErrorResponse(w *httptest.ResponseRecorder) (*ErrorResponse, error) {
-	var errorResponse ErrorResponse
-	err := json.NewDecoder(w.Body).Decode(&errorResponse)
-	return &errorResponse, err
-}
-
 // assertSuccessResponse checks status code and parses success response
 func assertSuccessResponse(
 	t *testing.T,
@@ -56,19 +49,6 @@ func assertSuccessResponse(
 	assert.Equal(t, expectedStatus, w.Code)
 	err := parseSuccessResponse(w, target)
 	assert.NoError(t, err)
-}
-
-// assertErrorResponse checks status code and parses error response
-func assertErrorResponse(
-	t *testing.T,
-	w *httptest.ResponseRecorder,
-	expectedStatus int,
-	expectedErrorContains string,
-) {
-	assert.Equal(t, expectedStatus, w.Code)
-	errorResp, err := parseErrorResponse(w)
-	assert.NoError(t, err)
-	assert.Contains(t, errorResp.Error, expectedErrorContains)
 }
 
 // cleanupTestData removes all test data from database in correct order to handle foreign key constraints
@@ -322,11 +302,11 @@ func TestNewHandlerNames(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("Unimplemented endpoints return not implemented", func(t *testing.T) {
+	t.Run("Tokens endpoint rejects non-POST methods", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/tokens", nil)
 		w := httptest.NewRecorder()
 		testHandler.handleTokens(w, req)
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 	})
 }
 

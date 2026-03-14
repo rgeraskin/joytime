@@ -1,14 +1,12 @@
 package domain
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/charmbracelet/log"
-	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -173,24 +171,6 @@ func (cas *CasbinAuthService) InitializePolicies() error {
 
 	cas.logger.Info("Casbin policies initialized successfully from code")
 	return nil
-}
-
-// getUserRole is a helper function to get user role
-func (cas *CasbinAuthService) getUserRole(userID string) (string, error) {
-	var user models.Users
-	err := cas.db.Where("user_id = ?", userID).First(&user).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("user with ID %s not found", userID)
-		}
-		return "", fmt.Errorf("failed to query user role: %w", err)
-	}
-
-	if user.Role == "" {
-		return "", fmt.Errorf("user %s has no role assigned", userID)
-	}
-
-	return user.Role, nil
 }
 
 // CheckPermission checks if a user has permission and family access to a resource

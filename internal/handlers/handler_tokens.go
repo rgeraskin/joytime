@@ -1,26 +1,18 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
-	"gorm.io/gorm"
 )
 
 // Token endpoints
 func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case http.MethodGet:
-		h.respondError(w, http.StatusNotImplemented, "Global token listing not yet implemented")
 	case http.MethodPost:
 		h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			authCtx := GetAuthContext(r)
-			if authCtx == nil {
-				h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-				return
-			}
 			h.createTokenTransaction(w, r, authCtx)
 		})(w, r)
 	default:
@@ -31,10 +23,6 @@ func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/tokens/users/")
 		if userID == "" {
@@ -56,10 +44,6 @@ func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleTokenHistory(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		switch r.Method {
 		case http.MethodGet:
@@ -73,10 +57,6 @@ func (h *APIHandler) handleTokenHistory(w http.ResponseWriter, r *http.Request) 
 func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/token-history/users/")
 		if userID == "" {
@@ -92,8 +72,6 @@ func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Reque
 		}
 	})(w, r)
 }
-
-
 
 func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 	var request TokenAddRequest
@@ -123,33 +101,17 @@ func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Reque
 		request.RewardID,
 	)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can create token transactions")
-			return
-		}
-		if errors.Is(err, domain.ErrInsufficientTokens) {
-			h.respondError(w, http.StatusBadRequest, "Insufficient tokens")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to create token transaction")
+		h.respondServiceError(w, err, "failed to create token transaction")
 		return
 	}
 
-	h.respondSuccess(w, http.StatusCreated, map[string]string{"message": "Token transaction completed"})
+	h.respondSuccess(w, http.StatusCreated, map[string]string{"message": "token transaction completed"})
 }
 
 func (h *APIHandler) getUserTokens(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
 	tokens, err := h.services.TokenService.GetUserTokens(r.Context(), authCtx, userID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve user tokens")
+		h.respondServiceError(w, err, "failed to retrieve user tokens")
 		return
 	}
 
@@ -179,22 +141,13 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 		update.RewardID,
 	)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can update user tokens")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to update user tokens")
+		h.respondServiceError(w, err, "failed to update user tokens")
 		return
 	}
 
-	// Get updated tokens to return
 	tokens, err := h.services.TokenService.GetUserTokens(r.Context(), authCtx, userID)
 	if err != nil {
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve updated tokens")
+		h.respondError(w, http.StatusInternalServerError, "failed to retrieve updated tokens")
 		return
 	}
 
@@ -202,14 +155,9 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 }
 
 func (h *APIHandler) getTokenHistory(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-	// Returns the current user's own token history
 	history, err := h.services.TokenService.GetTokenHistory(r.Context(), authCtx, authCtx.UserID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve token history")
+		h.respondServiceError(w, err, "failed to retrieve token history")
 		return
 	}
 
@@ -219,15 +167,7 @@ func (h *APIHandler) getTokenHistory(w http.ResponseWriter, r *http.Request, aut
 func (h *APIHandler) getUserTokenHistory(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
 	history, err := h.services.TokenService.GetTokenHistory(r.Context(), authCtx, userID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrUserNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve user token history")
+		h.respondServiceError(w, err, "failed to retrieve user token history")
 		return
 	}
 

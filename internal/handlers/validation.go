@@ -13,17 +13,6 @@ func sanitizeInput(input string) string {
 	return html.EscapeString(strings.TrimSpace(input))
 }
 
-// sanitizeInputs sanitizes all string fields in the provided data
-func sanitizeUser(user *models.Users) {
-	user.Name = sanitizeInput(user.Name)
-	user.UserID = sanitizeInput(user.UserID)
-	user.FamilyUID = sanitizeInput(user.FamilyUID)
-	user.Platform = sanitizeInput(user.Platform)
-	user.Role = sanitizeInput(user.Role)
-	user.InputState = sanitizeInput(user.InputState)
-	user.InputContext = sanitizeInput(user.InputContext)
-}
-
 func sanitizeFamily(family *models.Families) {
 	family.Name = sanitizeInput(family.Name)
 	family.UID = sanitizeInput(family.UID)
@@ -43,85 +32,10 @@ func sanitizeReward(reward *models.Rewards) {
 	reward.FamilyUID = sanitizeInput(reward.FamilyUID)
 }
 
-func sanitizeEntity(entity *models.Entities) {
-	entity.Name = sanitizeInput(entity.Name)
-	entity.Description = sanitizeInput(entity.Description)
-	entity.FamilyUID = sanitizeInput(entity.FamilyUID)
-}
-
 func sanitizeTokenAddRequest(req *TokenAddRequest) {
 	req.UserID = sanitizeInput(req.UserID)
 	req.Type = sanitizeInput(req.Type)
 	req.Description = sanitizeInput(req.Description)
-}
-
-// ValidateUserCreate validates user creation request
-func (h *APIHandler) ValidateUserCreate(user *models.Users) []ValidationError {
-	// Sanitize inputs first
-	sanitizeUser(user)
-
-	var errors []ValidationError
-
-	// Required fields
-	if user.Name == "" {
-		errors = append(errors, ValidationError{Field: "name", Message: ErrNameRequired})
-	}
-	if user.FamilyUID == "" {
-		errors = append(errors, ValidationError{Field: "family_uid", Message: ErrFamilyUIDRequiredField})
-	}
-	if user.UserID == "" {
-		errors = append(errors, ValidationError{Field: "user_id", Message: ErrUserIDRequiredField})
-	}
-	if user.Role == "" {
-		errors = append(errors, ValidationError{Field: "role", Message: ErrRoleRequired})
-	}
-
-	// Validate role
-	if user.Role != "" && !h.validateRole(user.Role) {
-		errors = append(errors, ValidationError{Field: "role", Message: ErrInvalidRole})
-	}
-
-	// Validate platform if provided
-	if user.Platform != "" && !h.validatePlatform(user.Platform) {
-		errors = append(errors, ValidationError{Field: "platform", Message: ErrInvalidPlatform})
-	}
-
-	// Validate name length
-	if len(user.Name) > 100 {
-		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
-	}
-
-	// Validate UserID format (basic validation)
-	if user.UserID != "" && len(user.UserID) < 3 {
-		errors = append(errors, ValidationError{Field: "user_id", Message: "UserID too short (min 3 characters)"})
-	}
-
-	return errors
-}
-
-// ValidateUserUpdate validates user update request
-func (h *APIHandler) ValidateUserUpdate(user *models.Users) []ValidationError {
-	// Sanitize inputs first
-	sanitizeUser(user)
-
-	var errors []ValidationError
-
-	// Validate role if provided
-	if user.Role != "" && !h.validateRole(user.Role) {
-		errors = append(errors, ValidationError{Field: "role", Message: ErrInvalidRole})
-	}
-
-	// Validate platform if provided
-	if user.Platform != "" && !h.validatePlatform(user.Platform) {
-		errors = append(errors, ValidationError{Field: "platform", Message: ErrInvalidPlatform})
-	}
-
-	// Validate name length if provided
-	if user.Name != "" && len(user.Name) > 100 {
-		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
-	}
-
-	return errors
 }
 
 // ValidateFamilyCreate validates family creation request
@@ -146,26 +60,6 @@ func (h *APIHandler) ValidateFamilyCreate(family *models.Families) []ValidationE
 
 	// Validate name length
 	if len(family.Name) > 100 {
-		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
-	}
-
-	return errors
-}
-
-// ValidateFamilyUpdate validates family update request
-func (h *APIHandler) ValidateFamilyUpdate(family *models.Families) []ValidationError {
-	// Sanitize inputs first
-	sanitizeFamily(family)
-
-	var errors []ValidationError
-
-	// Check required fields
-	if family.Name == "" && family.UID == "" {
-		errors = append(errors, ValidationError{Field: "name", Message: ErrNameOrUIDRequired})
-	}
-
-	// Validate name length if provided
-	if family.Name != "" && len(family.Name) > 100 {
 		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
 	}
 
@@ -238,42 +132,6 @@ func (h *APIHandler) ValidateRewardCreate(reward *models.Rewards) []ValidationEr
 
 	// Validate description length
 	if len(reward.Description) > 500 {
-		errors = append(errors, ValidationError{Field: "description", Message: "Description too long (max 500 characters)"})
-	}
-
-	return errors
-}
-
-// ValidateEntityUpdate validates entity update request
-func (h *APIHandler) ValidateEntityUpdate(entity *models.Entities) []ValidationError {
-	// Sanitize inputs first
-	sanitizeEntity(entity)
-
-	var errors []ValidationError
-
-	// Required fields
-	if entity.FamilyUID == "" {
-		errors = append(errors, ValidationError{Field: "family_uid", Message: ErrFamilyUIDRequiredField})
-	}
-	if entity.Name == "" {
-		errors = append(errors, ValidationError{Field: "name", Message: ErrNameRequired})
-	}
-	if entity.Tokens == 0 {
-		errors = append(errors, ValidationError{Field: "tokens", Message: "Tokens is required"})
-	}
-
-	// Validate tokens range
-	if entity.Tokens < 0 || entity.Tokens > 1000 {
-		errors = append(errors, ValidationError{Field: "tokens", Message: "Tokens must be between 1 and 1000"})
-	}
-
-	// Validate name length
-	if len(entity.Name) > 200 {
-		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 200 characters)"})
-	}
-
-	// Validate description length
-	if len(entity.Description) > 500 {
 		errors = append(errors, ValidationError{Field: "description", Message: "Description too long (max 500 characters)"})
 	}
 

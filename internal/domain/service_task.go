@@ -61,6 +61,28 @@ func (s *TaskService) GetTasksForFamily(
 	return tasks, err
 }
 
+// GetTask retrieves a single task by family and name
+func (s *TaskService) GetTask(
+	ctx context.Context,
+	authCtx *AuthContext,
+	familyUID, taskName string,
+) (*models.Tasks, error) {
+	if err := s.auth.RequirePermission(authCtx, "tasks", "read", familyUID); err != nil {
+		return nil, err
+	}
+
+	var task models.Tasks
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ? AND name = ?", familyUID, taskName).
+		First(&task).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &task, nil
+}
+
 // CompleteTask marks a task as completed and awards tokens when parent approves.
 // Child submits for review (new → check), parent approves (check/new → completed + tokens).
 // Task status update and token award are wrapped in a single transaction.

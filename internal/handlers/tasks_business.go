@@ -1,28 +1,20 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
-	"gorm.io/gorm"
 )
 
 // handleTasks handles /tasks endpoint using business logic layer
 func (h *APIHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
 		switch r.Method {
-		case http.MethodGet:
-			h.listTasks(w, r, authCtx)
 		case http.MethodPost:
 			h.createTask(w, r, authCtx)
 		default:
@@ -35,24 +27,17 @@ func (h *APIHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) handleTasksByFamily(w http.ResponseWriter, r *http.Request) {
 	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		authCtx := GetAuthContext(r)
-		if authCtx == nil {
-			h.respondError(w, http.StatusInternalServerError, ErrAuthContextNotFound)
-			return
-		}
 
-		// Extract familyUID from path
 		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/tasks/")
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)
 			return
 		}
 
-		// Split path to check for task name (for individual task operations)
 		parts := strings.SplitN(familyUID, "/", 2)
 		familyUID = parts[0]
 
 		if len(parts) == 2 && parts[1] != "" {
-			// Individual task operation: /tasks/{familyUID}/{taskName}
 			taskName, err := url.QueryUnescape(parts[1])
 			if err != nil {
 				h.respondError(w, http.StatusBadRequest, ErrInvalidEntityEncoding)
@@ -72,17 +57,9 @@ func (h *APIHandler) handleTasksByFamily(w http.ResponseWriter, r *http.Request)
 				h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
 			}
 		} else {
-			// Family tasks operation: /tasks/{familyUID}
 			h.getFamilyTasks(w, r, authCtx, familyUID)
 		}
 	})(w, r)
-}
-
-// listTasks gets all tasks (admin-level, might not be needed for most users)
-func (h *APIHandler) listTasks(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-	// Most users should use getFamilyTasks instead
-	// This might be used for admin purposes
-	h.respondError(w, http.StatusNotImplemented, "Global task listing not implemented - use family-specific endpoint")
 }
 
 // createTask creates a new task
@@ -100,11 +77,7 @@ func (h *APIHandler) createTask(w http.ResponseWriter, r *http.Request, authCtx 
 
 	err := h.services.TaskService.CreateTask(r.Context(), authCtx, &task)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can create tasks")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to create task")
+		h.respondServiceError(w, err, "failed to create task")
 		return
 	}
 
@@ -115,11 +88,7 @@ func (h *APIHandler) createTask(w http.ResponseWriter, r *http.Request, authCtx 
 func (h *APIHandler) getFamilyTasks(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID string) {
 	tasks, err := h.services.TaskService.GetTasksForFamily(r.Context(), authCtx, familyUID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve tasks")
+		h.respondServiceError(w, err, "failed to retrieve tasks")
 		return
 	}
 
@@ -128,26 +97,13 @@ func (h *APIHandler) getFamilyTasks(w http.ResponseWriter, r *http.Request, auth
 
 // getTask gets a single task by family and name
 func (h *APIHandler) getTask(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, taskName string) {
-	// Get all family tasks and find the specific one
-	tasks, err := h.services.TaskService.GetTasksForFamily(r.Context(), authCtx, familyUID)
+	task, err := h.services.TaskService.GetTask(r.Context(), authCtx, familyUID, taskName)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to retrieve tasks")
+		h.respondServiceError(w, err, "failed to retrieve task")
 		return
 	}
 
-	// Find the specific task
-	for _, task := range tasks {
-		if task.Name == taskName {
-			h.respondSuccess(w, http.StatusOK, task)
-			return
-		}
-	}
-
-	h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
+	h.respondSuccess(w, http.StatusOK, task)
 }
 
 // updateTask updates a single task
@@ -160,15 +116,7 @@ func (h *APIHandler) updateTask(w http.ResponseWriter, r *http.Request, authCtx 
 
 	task, err := h.services.TaskService.UpdateTask(r.Context(), authCtx, familyUID, taskName, &updates)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can update tasks")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to update task")
+		h.respondServiceError(w, err, "failed to update task")
 		return
 	}
 
@@ -179,15 +127,7 @@ func (h *APIHandler) updateTask(w http.ResponseWriter, r *http.Request, authCtx 
 func (h *APIHandler) deleteTask(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, taskName string) {
 	err := h.services.TaskService.DeleteTask(r.Context(), authCtx, familyUID, taskName)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Only parents can delete tasks")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to delete task")
+		h.respondServiceError(w, err, "failed to delete task")
 		return
 	}
 
@@ -198,23 +138,7 @@ func (h *APIHandler) deleteTask(w http.ResponseWriter, r *http.Request, authCtx 
 func (h *APIHandler) completeTask(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, taskName string) {
 	task, err := h.services.TaskService.CompleteTask(r.Context(), authCtx, familyUID, taskName)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
-			h.respondError(w, http.StatusForbidden, "Access denied")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
-			return
-		}
-		if errors.Is(err, domain.ErrTaskAlreadyCompleted) ||
-			errors.Is(err, domain.ErrTaskInvalidForReview) ||
-			errors.Is(err, domain.ErrTaskInvalidForApprove) ||
-			errors.Is(err, domain.ErrNoAssignedChild) ||
-			errors.Is(err, domain.ErrTaskNotAssignedToUser) {
-			h.respondError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.respondError(w, http.StatusInternalServerError, "Failed to complete task")
+		h.respondServiceError(w, err, "failed to complete task")
 		return
 	}
 

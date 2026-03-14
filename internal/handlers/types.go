@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/charmbracelet/log"
@@ -38,8 +39,8 @@ type ErrorResponse struct {
 
 // SuccessResponse represents a standardized success response
 type SuccessResponse struct {
-	Data    any `json:"data,omitempty"`
-	Message string      `json:"message,omitempty"`
+	Data    any    `json:"data,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // TokenAddRequest represents request for adding/subtracting tokens
@@ -60,14 +61,6 @@ type ValidationError struct {
 	Message string `json:"message"`
 }
 
-// EntityType represents the type of entity (tasks or rewards)
-type EntityType string
-
-const (
-	EntityTypeTasks   EntityType = "tasks"
-	EntityTypeRewards EntityType = "rewards"
-)
-
 // respondJSON sends a JSON response
 func (h *APIHandler) respondJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", ContentTypeJSON)
@@ -87,6 +80,29 @@ func (h *APIHandler) respondSuccess(w http.ResponseWriter, status int, data any)
 	h.respondJSON(w, status, SuccessResponse{Data: data})
 }
 
+// respondServiceError maps domain/database errors to HTTP responses.
+// Returns true if the error was handled, false if the caller should handle it.
+func (h *APIHandler) respondServiceError(w http.ResponseWriter, err error, fallbackMsg string) {
+	switch {
+	case errors.Is(err, domain.ErrUnauthorized):
+		h.respondError(w, http.StatusForbidden, "access denied")
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
+	case errors.Is(err, domain.ErrInsufficientTokens):
+		h.respondError(w, http.StatusBadRequest, ErrInsufficientTokens)
+	case errors.Is(err, domain.ErrCannotDeleteSelf):
+		h.respondError(w, http.StatusBadRequest, "cannot delete yourself")
+	case errors.Is(err, domain.ErrTaskAlreadyCompleted),
+		errors.Is(err, domain.ErrTaskInvalidForReview),
+		errors.Is(err, domain.ErrTaskInvalidForApprove),
+		errors.Is(err, domain.ErrNoAssignedChild),
+		errors.Is(err, domain.ErrTaskNotAssignedToUser):
+		h.respondError(w, http.StatusBadRequest, err.Error())
+	default:
+		h.respondError(w, http.StatusInternalServerError, fallbackMsg)
+	}
+}
+
 // maxRequestBodySize is the maximum allowed request body size (1MB)
 const maxRequestBodySize = 1 << 20
 
@@ -96,14 +112,6 @@ func (h *APIHandler) decodeJSON(w http.ResponseWriter, r *http.Request, v any) e
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
-
-
-
-// validateRole checks if role is valid
-func (h *APIHandler) validateRole(role string) bool {
-	return role == string(domain.RoleParent) || role == string(domain.RoleChild)
-}
-
 // validateTokenType checks if token operation type is valid
 func (h *APIHandler) validateTokenType(tokenType string) bool {
 	return tokenType == domain.TokenTypeTaskCompleted ||
@@ -111,11 +119,3 @@ func (h *APIHandler) validateTokenType(tokenType string) bool {
 		tokenType == domain.TokenTypeManualAdjustment
 }
 
-
-
-// validatePlatform checks if platform is valid
-func (h *APIHandler) validatePlatform(platform string) bool {
-	return platform == PlatformTelegram ||
-		platform == PlatformWeb ||
-		platform == PlatformMobile
-}

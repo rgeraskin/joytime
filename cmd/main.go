@@ -84,7 +84,7 @@ func main() {
 	// Close database connection
 	sqlDB, err := db.DB()
 	if err == nil {
-		sqlDB.Close()
+		_ = sqlDB.Close()
 	}
 
 	logger.Info("Server stopped")
