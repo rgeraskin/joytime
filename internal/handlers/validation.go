@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
@@ -47,7 +48,7 @@ func validateFamilyCreate(family *models.Families) error {
 func validateTaskCreate(task *models.Tasks) error {
 	sanitizeTask(task)
 	if task.FamilyUID == "" {
-		return domain.ErrValidation
+		return fmt.Errorf("%w: family_uid is required", domain.ErrValidation)
 	}
 	return domain.ValidateEntityCreate(task.Name, task.Description, task.Tokens)
 }
@@ -56,7 +57,7 @@ func validateTaskCreate(task *models.Tasks) error {
 func validateRewardCreate(reward *models.Rewards) error {
 	sanitizeReward(reward)
 	if reward.FamilyUID == "" {
-		return domain.ErrValidation
+		return fmt.Errorf("%w: family_uid is required", domain.ErrValidation)
 	}
 	return domain.ValidateEntityCreate(reward.Name, reward.Description, reward.Tokens)
 }

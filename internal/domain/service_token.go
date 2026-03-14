@@ -108,37 +108,34 @@ func (s *TokenService) addTokensInTx(
 	return tx.Create(&history).Error
 }
 
+// requireTokenReadPermission checks that authCtx may read the given user's tokens.
+func (s *TokenService) requireTokenReadPermission(ctx context.Context, authCtx *AuthContext, userID string) error {
+	var targetUser models.Users
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&targetUser).Error; err != nil {
+		return err
+	}
+
+	action := "read"
+	if authCtx.UserID != userID {
+		action = "read_others"
+	}
+	return s.auth.RequirePermission(authCtx, "tokens", action, targetUser.FamilyUID)
+}
+
 // GetUserTokens retrieves token balance for a user
 func (s *TokenService) GetUserTokens(
 	ctx context.Context,
 	authCtx *AuthContext,
 	userID string,
 ) (*models.Tokens, error) {
-	// Get target user to check family and authorization
-	var targetUser models.Users
-	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&targetUser).Error
-	if err != nil {
+	if err := s.requireTokenReadPermission(ctx, authCtx, userID); err != nil {
 		return nil, err
 	}
 
-	// Check permission and family access using Casbin
-	if authCtx.UserID == userID {
-		// User accessing their own tokens
-		if err := s.auth.RequirePermission(authCtx, "tokens", "read", targetUser.FamilyUID); err != nil {
-			return nil, err
-		}
-	} else {
-		// Parent accessing other user's tokens
-		if err := s.auth.RequirePermission(authCtx, "tokens", "read_others", targetUser.FamilyUID); err != nil {
-			return nil, err
-		}
-	}
-
 	var tokens models.Tokens
-	err = s.db.WithContext(ctx).Where("user_id = ?", userID).First(&tokens).Error
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&tokens).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Return zero tokens if no record exists
 			return &models.Tokens{
 				UserID: userID,
 				Tokens: 0,
@@ -156,28 +153,12 @@ func (s *TokenService) GetTokenHistory(
 	authCtx *AuthContext,
 	userID string,
 ) ([]models.TokenHistory, error) {
-	// Get target user to check family and authorization
-	var targetUser models.Users
-	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&targetUser).Error
-	if err != nil {
+	if err := s.requireTokenReadPermission(ctx, authCtx, userID); err != nil {
 		return nil, err
 	}
 
-	// Check permission and family access using Casbin
-	if authCtx.UserID == userID {
-		// User accessing their own history
-		if err := s.auth.RequirePermission(authCtx, "tokens", "read", targetUser.FamilyUID); err != nil {
-			return nil, err
-		}
-	} else {
-		// Parent accessing other user's history
-		if err := s.auth.RequirePermission(authCtx, "tokens", "read_others", targetUser.FamilyUID); err != nil {
-			return nil, err
-		}
-	}
-
 	var history []models.TokenHistory
-	err = s.db.WithContext(ctx).
+	err := s.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&history).
