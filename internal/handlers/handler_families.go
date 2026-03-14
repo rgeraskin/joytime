@@ -10,9 +10,7 @@ import (
 
 // Family endpoints
 func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		switch r.Method {
 		case http.MethodGet:
 			h.listFamilies(w, r, authCtx)
@@ -25,9 +23,7 @@ func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) handleFamily(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/families/")
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)

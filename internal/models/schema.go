@@ -39,7 +39,6 @@ type Tasks struct {
 	Entities
 	AssignedToUserID string `json:"assigned_to_user_id" gorm:"index"`
 	Status           string `json:"status" gorm:"default:new"` // new, check, completed
-	OneOff           bool   `json:"one_off" gorm:"default:false"`
 }
 
 type Rewards struct {

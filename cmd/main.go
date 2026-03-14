@@ -14,8 +14,6 @@ import (
 	"github.com/rgeraskin/joytime/internal/handlers"
 )
 
-var logger *log.Logger
-
 func main() {
 	// Initialize flags
 	var fill bool
@@ -32,7 +30,7 @@ func main() {
 	if os.Getenv("DEBUG") != "" {
 		level = log.DebugLevel
 	}
-	logger = log.NewWithOptions(os.Stderr, log.Options{
+	logger := log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           level,
@@ -40,7 +38,7 @@ func main() {
 
 	// Get config
 	logger.Info("Getting config...")
-	config, err := NewConfig()
+	config, err := NewConfig(logger)
 	if err != nil {
 		logger.Fatal("Failed to get config", "error", err)
 	}
@@ -83,7 +81,9 @@ func main() {
 
 	// Close database connection
 	sqlDB, err := db.DB()
-	if err == nil {
+	if err != nil {
+		logger.Error("Failed to get sql.DB for cleanup", "error", err)
+	} else {
 		_ = sqlDB.Close()
 	}
 

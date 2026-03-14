@@ -2,15 +2,14 @@ package handlers
 
 import (
 	"fmt"
-	"html"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/models"
 )
 
-// sanitizeInput sanitizes user input by escaping HTML and trimming whitespace
+// sanitizeInput trims whitespace from user input
 func sanitizeInput(input string) string {
-	return html.EscapeString(strings.TrimSpace(input))
+	return strings.TrimSpace(input)
 }
 
 func sanitizeFamily(family *models.Families) {
@@ -90,8 +89,8 @@ func (h *APIHandler) ValidateTaskCreate(task *models.Tasks) []ValidationError {
 	}
 
 	// Validate name length
-	if len(task.Name) > 200 {
-		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 200 characters)"})
+	if len(task.Name) > 100 {
+		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
 	}
 
 	// Validate description length
@@ -126,8 +125,8 @@ func (h *APIHandler) ValidateRewardCreate(reward *models.Rewards) []ValidationEr
 	}
 
 	// Validate name length
-	if len(reward.Name) > 200 {
-		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 200 characters)"})
+	if len(reward.Name) > 100 {
+		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
 	}
 
 	// Validate description length

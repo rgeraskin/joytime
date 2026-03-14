@@ -9,9 +9,7 @@ import (
 
 // User endpoints
 func (h *APIHandler) handleUsers(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		switch r.Method {
 		case http.MethodGet:
 			h.listUsers(w, r, authCtx)
@@ -22,9 +20,7 @@ func (h *APIHandler) handleUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) handleUser(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 		if userID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)

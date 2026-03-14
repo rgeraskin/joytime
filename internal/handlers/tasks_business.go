@@ -11,9 +11,7 @@ import (
 
 // handleTasks handles /tasks endpoint using business logic layer
 func (h *APIHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		switch r.Method {
 		case http.MethodPost:
 			h.createTask(w, r, authCtx)
@@ -25,9 +23,7 @@ func (h *APIHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 
 // handleTasksByFamily handles /tasks/{familyUID} endpoints using business logic
 func (h *APIHandler) handleTasksByFamily(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/tasks/")
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)

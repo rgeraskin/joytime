@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/database"
 )
 
@@ -12,7 +13,7 @@ type Config struct {
 	DB    database.Config
 }
 
-func NewConfig() (*Config, error) {
+func NewConfig(logger *log.Logger) (*Config, error) {
 	config := &Config{}
 
 	logger.Debug("Loading config...")

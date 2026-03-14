@@ -11,9 +11,7 @@ import (
 
 // Reward endpoints
 func (h *APIHandler) handleRewards(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		switch r.Method {
 		case http.MethodPost:
 			h.createReward(w, r, authCtx)
@@ -24,9 +22,7 @@ func (h *APIHandler) handleRewards(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/rewards/")
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)

@@ -11,8 +11,7 @@ import (
 func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-			authCtx := GetAuthContext(r)
+		h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 			h.createTokenTransaction(w, r, authCtx)
 		})(w, r)
 	default:
@@ -21,9 +20,7 @@ func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/tokens/users/")
 		if userID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
@@ -42,9 +39,7 @@ func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) handleTokenHistory(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		switch r.Method {
 		case http.MethodGet:
 			h.getTokenHistory(w, r, authCtx)
@@ -55,9 +50,7 @@ func (h *APIHandler) handleTokenHistory(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Request) {
-	h.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		authCtx := GetAuthContext(r)
-
+	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/token-history/users/")
 		if userID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
