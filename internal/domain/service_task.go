@@ -131,7 +131,7 @@ func (s *TaskService) CompleteTask(
 				tx,
 				task.AssignedToUserID,
 				task.Tokens,
-				"task_completed",
+				TokenTypeTaskCompleted,
 				"Completed task: "+task.Name,
 				&taskID,
 				nil,

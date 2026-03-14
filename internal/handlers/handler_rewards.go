@@ -75,7 +75,7 @@ func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Reques
 
 func (h *APIHandler) createReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 	var reward models.Rewards
-	if err := h.decodeJSON(r, &reward); err != nil {
+	if err := h.decodeJSON(w, r, &reward); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}
@@ -135,7 +135,7 @@ func (h *APIHandler) getReward(w http.ResponseWriter, r *http.Request, authCtx *
 
 func (h *APIHandler) updateReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, rewardName string) {
 	var updates domain.UpdateRewardRequest
-	if err := h.decodeJSON(r, &updates); err != nil {
+	if err := h.decodeJSON(w, r, &updates); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}

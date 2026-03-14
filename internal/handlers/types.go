@@ -91,8 +91,8 @@ func (h *APIHandler) respondSuccess(w http.ResponseWriter, status int, data any)
 const maxRequestBodySize = 1 << 20
 
 // decodeJSON decodes JSON request body with size limit
-func (h *APIHandler) decodeJSON(r *http.Request, v any) error {
-	r.Body = http.MaxBytesReader(nil, r.Body, maxRequestBodySize)
+func (h *APIHandler) decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
@@ -101,14 +101,14 @@ func (h *APIHandler) decodeJSON(r *http.Request, v any) error {
 
 // validateRole checks if role is valid
 func (h *APIHandler) validateRole(role string) bool {
-	return role == RoleParent || role == RoleChild
+	return role == string(domain.RoleParent) || role == string(domain.RoleChild)
 }
 
 // validateTokenType checks if token operation type is valid
 func (h *APIHandler) validateTokenType(tokenType string) bool {
-	return tokenType == TokenTypeTaskCompleted ||
-		tokenType == TokenTypeRewardClaimed ||
-		tokenType == TokenTypeManualAdjustment
+	return tokenType == domain.TokenTypeTaskCompleted ||
+		tokenType == domain.TokenTypeRewardClaimed ||
+		tokenType == domain.TokenTypeManualAdjustment
 }
 
 

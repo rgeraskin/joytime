@@ -1,6 +1,7 @@
 package database
 
 import (
+	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
@@ -53,7 +54,7 @@ func Fill(db *gorm.DB) error {
 	history := models.TokenHistory{
 		UserID:      "user_123456789",
 		Amount:      10,
-		Type:        "manual_adjustment",
+		Type:        domain.TokenTypeManualAdjustment,
 		Description: "Начальный баланс",
 	}
 	if err := db.Create(&history).Error; err != nil {

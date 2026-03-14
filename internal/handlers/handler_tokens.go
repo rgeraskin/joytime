@@ -97,7 +97,7 @@ func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Reque
 
 func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 	var request TokenAddRequest
-	if err := h.decodeJSON(r, &request); err != nil {
+	if err := h.decodeJSON(w, r, &request); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}
@@ -158,7 +158,7 @@ func (h *APIHandler) getUserTokens(w http.ResponseWriter, r *http.Request, authC
 
 func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
 	var update TokenAddRequest
-	if err := h.decodeJSON(r, &update); err != nil {
+	if err := h.decodeJSON(w, r, &update); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}

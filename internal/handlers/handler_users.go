@@ -95,7 +95,7 @@ func (h *APIHandler) getUser(w http.ResponseWriter, r *http.Request, authCtx *do
 
 func (h *APIHandler) updateUser(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
 	var updates domain.UpdateUserRequest
-	if err := h.decodeJSON(r, &updates); err != nil {
+	if err := h.decodeJSON(w, r, &updates); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}

@@ -88,7 +88,7 @@ func (h *APIHandler) listTasks(w http.ResponseWriter, r *http.Request, authCtx *
 // createTask creates a new task
 func (h *APIHandler) createTask(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 	var task models.Tasks
-	if err := h.decodeJSON(r, &task); err != nil {
+	if err := h.decodeJSON(w, r, &task); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}
@@ -153,7 +153,7 @@ func (h *APIHandler) getTask(w http.ResponseWriter, r *http.Request, authCtx *do
 // updateTask updates a single task
 func (h *APIHandler) updateTask(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, taskName string) {
 	var updates domain.UpdateTaskRequest
-	if err := h.decodeJSON(r, &updates); err != nil {
+	if err := h.decodeJSON(w, r, &updates); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}

@@ -322,7 +322,7 @@ func TestRewardClaimIntegration(t *testing.T) {
 		// Find the reward claim entry
 		var found bool
 		for _, h := range history {
-			if h.Type == "reward_claimed" {
+			if h.Type == domain.TokenTypeRewardClaimed {
 				found = true
 				assert.Equal(t, -30, h.Amount)
 				assert.Contains(t, h.Description, "Movie Night")

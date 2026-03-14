@@ -81,7 +81,7 @@ func (h *APIHandler) createFamily(
 	authCtx *domain.AuthContext,
 ) {
 	var family models.Families
-	if err := h.decodeJSON(r, &family); err != nil {
+	if err := h.decodeJSON(w, r, &family); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}
@@ -130,7 +130,7 @@ func (h *APIHandler) updateFamily(
 	familyUID string,
 ) {
 	var updates domain.UpdateFamilyRequest
-	if err := h.decodeJSON(r, &updates); err != nil {
+	if err := h.decodeJSON(w, r, &updates); err != nil {
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}

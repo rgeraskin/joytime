@@ -76,7 +76,8 @@ func (s *TokenService) addTokensInTx(
 	taskID, rewardID *uint,
 ) error {
 	var tokens models.Tokens
-	err := tx.Where("user_id = ?", targetUserID).First(&tokens).Error
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", targetUserID).First(&tokens).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			tokens = models.Tokens{
@@ -224,7 +225,7 @@ func (s *TokenService) ClaimReward(
 		history := models.TokenHistory{
 			UserID:      authCtx.UserID,
 			Amount:      -reward.Tokens,
-			Type:        "reward_claimed",
+			Type:        TokenTypeRewardClaimed,
 			Description: "Claimed reward: " + reward.Name,
 			RewardID:    &rewardID,
 		}

@@ -1,24 +1,10 @@
 package handlers
 
 const (
-	// User roles
-	RoleParent = "parent"
-	RoleChild  = "child"
-
 	// Platforms
 	PlatformTelegram = "telegram"
 	PlatformWeb      = "web"
 	PlatformMobile   = "mobile"
-
-	// Token operation types
-	TokenTypeTaskCompleted    = "task_completed"
-	TokenTypeRewardClaimed    = "reward_claimed"
-	TokenTypeManualAdjustment = "manual_adjustment"
-
-	// Task statuses
-	TaskStatusNew       = "new"
-	TaskStatusCheck     = "check"
-	TaskStatusCompleted = "completed"
 
 	// HTTP Content-Type
 	ContentTypeJSON = "application/json"

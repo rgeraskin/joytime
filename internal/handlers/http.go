@@ -8,9 +8,7 @@ import (
 )
 
 const (
-	ADDRESS          = ":8080"
-	FAMILYUIDCHARSET = "abcdefghjkmnpqrstuvwxyz23456789"
-	FAMILYUIDLENGTH  = 6
+	ADDRESS = ":8080"
 )
 
 // SetupAPI configures and returns the HTTP server for the API with RBAC enforcement
