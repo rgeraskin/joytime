@@ -85,6 +85,10 @@ func (s *RewardService) UpdateReward(
 		return nil, err
 	}
 
+	if err := updates.Validate(); err != nil {
+		return nil, err
+	}
+
 	var reward models.Rewards
 	err := s.db.WithContext(ctx).
 		Where("family_uid = ? AND name = ?", familyUID, rewardName).

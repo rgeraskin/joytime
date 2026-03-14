@@ -207,6 +207,10 @@ func (s *TaskService) UpdateTask(
 		return nil, err
 	}
 
+	if err := updates.Validate(); err != nil {
+		return nil, err
+	}
+
 	var task models.Tasks
 	err := s.db.WithContext(ctx).
 		Where("family_uid = ? AND name = ?", familyUID, taskName).

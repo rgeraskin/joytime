@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -24,22 +22,17 @@ func (h *APIHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 // handleTasksByFamily handles /tasks/{familyUID} endpoints using business logic
 func (h *APIHandler) handleTasksByFamily(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/tasks/")
+		familyUID, taskName, err := parseFamilyEntityPath(r.URL.Path, "/api/v1/tasks/")
+		if err != nil {
+			h.respondError(w, http.StatusBadRequest, ErrInvalidEntityEncoding)
+			return
+		}
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)
 			return
 		}
 
-		parts := strings.SplitN(familyUID, "/", 2)
-		familyUID = parts[0]
-
-		if len(parts) == 2 && parts[1] != "" {
-			taskName, err := url.QueryUnescape(parts[1])
-			if err != nil {
-				h.respondError(w, http.StatusBadRequest, ErrInvalidEntityEncoding)
-				return
-			}
-
+		if taskName != "" {
 			switch r.Method {
 			case http.MethodGet:
 				h.getTask(w, r, authCtx, familyUID, taskName)

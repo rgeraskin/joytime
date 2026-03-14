@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/domain"
@@ -29,9 +31,9 @@ func NewAPIHandler(database *gorm.DB, logger *log.Logger) *APIHandler {
 	}
 }
 
-// DB returns the underlying database connection (used by tests for setup/teardown)
+// DB returns the underlying database connection for test setup/teardown.
 func (h *APIHandler) DB() *gorm.DB {
-	return h.services.DB()
+	return h.services.TestDB()
 }
 
 // ErrorResponse represents a standardized error response
@@ -91,6 +93,8 @@ func (h *APIHandler) respondServiceError(w http.ResponseWriter, err error, fallb
 		h.respondError(w, http.StatusNotFound, ErrEntityNotFound)
 	case errors.Is(err, domain.ErrInsufficientTokens):
 		h.respondError(w, http.StatusBadRequest, ErrInsufficientTokens)
+	case errors.Is(err, domain.ErrValidation):
+		h.respondError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrCannotDeleteSelf):
 		h.respondError(w, http.StatusBadRequest, "cannot delete yourself")
 	case errors.Is(err, domain.ErrTaskAlreadyCompleted),
@@ -111,6 +115,28 @@ const maxRequestBodySize = 1 << 20
 func (h *APIHandler) decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	return json.NewDecoder(r.Body).Decode(v)
+}
+
+// parseFamilyEntityPath extracts familyUID and optional entity name from a URL path
+// with the given prefix. Returns (familyUID, entityName, error).
+// entityName is empty if the path only contains a familyUID.
+func parseFamilyEntityPath(path, prefix string) (familyUID, entityName string, err error) {
+	familyUID = strings.TrimPrefix(path, prefix)
+	if familyUID == "" {
+		return "", "", nil
+	}
+
+	parts := strings.SplitN(familyUID, "/", 2)
+	familyUID = parts[0]
+
+	if len(parts) == 2 && parts[1] != "" {
+		entityName, err = url.QueryUnescape(parts[1])
+		if err != nil {
+			return familyUID, "", err
+		}
+	}
+
+	return familyUID, entityName, nil
 }
 
 // validateTokenType checks if token operation type is valid

@@ -16,8 +16,8 @@ type Services struct {
 	Auth          *CasbinAuthService
 }
 
-// DB returns the underlying database connection
-func (s *Services) DB() *gorm.DB {
+// TestDB returns the underlying database connection for test setup/teardown.
+func (s *Services) TestDB() *gorm.DB {
 	return s.db
 }
 

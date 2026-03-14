@@ -94,6 +94,10 @@ func (s *UserService) UpdateUser(
 		}
 	}
 
+	if err := updates.Validate(); err != nil {
+		return nil, err
+	}
+
 	// Build selective update fields
 	updateFields := make(UpdateFields)
 	allowedFields := []string{}

@@ -115,9 +115,12 @@ func (s *FamilyService) UpdateFamily(
 		return nil, err
 	}
 
-	// Validate the update request
+	if err := updates.Validate(); err != nil {
+		return nil, err
+	}
+
 	if updates.Name == "" {
-		return nil, fmt.Errorf("family name cannot be empty")
+		return nil, validationErr("family name cannot be empty")
 	}
 
 	var family models.Families

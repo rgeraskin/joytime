@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -23,22 +21,17 @@ func (h *APIHandler) handleRewards(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/rewards/")
+		familyUID, rewardName, err := parseFamilyEntityPath(r.URL.Path, "/api/v1/rewards/")
+		if err != nil {
+			h.respondError(w, http.StatusBadRequest, ErrInvalidEntityEncoding)
+			return
+		}
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)
 			return
 		}
 
-		parts := strings.SplitN(familyUID, "/", 2)
-		familyUID = parts[0]
-
-		if len(parts) == 2 && parts[1] != "" {
-			rewardName, err := url.QueryUnescape(parts[1])
-			if err != nil {
-				h.respondError(w, http.StatusBadRequest, ErrInvalidEntityEncoding)
-				return
-			}
-
+		if rewardName != "" {
 			switch r.Method {
 			case http.MethodGet:
 				h.getReward(w, r, authCtx, familyUID, rewardName)
@@ -46,6 +39,8 @@ func (h *APIHandler) handleRewardsByFamily(w http.ResponseWriter, r *http.Reques
 				h.updateReward(w, r, authCtx, familyUID, rewardName)
 			case http.MethodDelete:
 				h.deleteReward(w, r, authCtx, familyUID, rewardName)
+			case http.MethodPost:
+				h.claimReward(w, r, authCtx, familyUID, rewardName)
 			default:
 				h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
 			}
@@ -120,4 +115,19 @@ func (h *APIHandler) deleteReward(w http.ResponseWriter, r *http.Request, authCt
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *APIHandler) claimReward(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, familyUID, rewardName string) {
+	reward, err := h.services.RewardService.GetReward(r.Context(), authCtx, familyUID, rewardName)
+	if err != nil {
+		h.respondServiceError(w, err, "failed to retrieve reward")
+		return
+	}
+
+	if err := h.services.TokenService.ClaimReward(r.Context(), authCtx, reward.ID); err != nil {
+		h.respondServiceError(w, err, "failed to claim reward")
+		return
+	}
+
+	h.respondSuccess(w, http.StatusOK, map[string]string{"message": "reward claimed"})
 }

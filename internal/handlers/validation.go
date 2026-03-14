@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
 )
 
@@ -39,26 +40,20 @@ func sanitizeTokenAddRequest(req *TokenAddRequest) {
 
 // ValidateFamilyCreate validates family creation request
 func (h *APIHandler) ValidateFamilyCreate(family *models.Families) []ValidationError {
-	// Sanitize inputs first
 	sanitizeFamily(family)
 
 	var errors []ValidationError
 
-	// Check restricted fields
 	if family.UID != "" {
 		errors = append(errors, ValidationError{Field: "uid", Message: "UID is auto-generated"})
 	}
 	if family.CreatedByUserID != "" {
 		errors = append(errors, ValidationError{Field: "created_by_user_id", Message: "CreatedByUserID is auto-generated"})
 	}
-
-	// Required fields
 	if family.Name == "" {
 		errors = append(errors, ValidationError{Field: "name", Message: ErrNameRequired})
 	}
-
-	// Validate name length
-	if len(family.Name) > 100 {
+	if len(family.Name) > domain.MaxNameLength {
 		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
 	}
 
@@ -67,14 +62,12 @@ func (h *APIHandler) ValidateFamilyCreate(family *models.Families) []ValidationE
 
 // ValidateTaskCreate validates task creation request
 func (h *APIHandler) ValidateTaskCreate(task *models.Tasks) []ValidationError {
-	// Sanitize inputs first
 	sanitizeTask(task)
 
 	var errors []ValidationError
 
-	// Required fields
 	if task.FamilyUID == "" {
-		errors = append(errors, ValidationError{Field: "family_uid", Message: ErrFamilyUIDRequiredField})
+		errors = append(errors, ValidationError{Field: "family_uid", Message: ErrFamilyUIDRequired})
 	}
 	if task.Name == "" {
 		errors = append(errors, ValidationError{Field: "name", Message: ErrNameRequired})
@@ -82,19 +75,13 @@ func (h *APIHandler) ValidateTaskCreate(task *models.Tasks) []ValidationError {
 	if task.Tokens <= 0 {
 		errors = append(errors, ValidationError{Field: "tokens", Message: "Tokens must be greater than 0"})
 	}
-
-	// Validate tokens range
-	if task.Tokens > 1000 {
+	if task.Tokens > domain.MaxTokens {
 		errors = append(errors, ValidationError{Field: "tokens", Message: "Tokens too high (max 1000)"})
 	}
-
-	// Validate name length
-	if len(task.Name) > 100 {
+	if len(task.Name) > domain.MaxNameLength {
 		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
 	}
-
-	// Validate description length
-	if len(task.Description) > 500 {
+	if len(task.Description) > domain.MaxDescriptionLength {
 		errors = append(errors, ValidationError{Field: "description", Message: "Description too long (max 500 characters)"})
 	}
 
@@ -103,14 +90,12 @@ func (h *APIHandler) ValidateTaskCreate(task *models.Tasks) []ValidationError {
 
 // ValidateRewardCreate validates reward creation request
 func (h *APIHandler) ValidateRewardCreate(reward *models.Rewards) []ValidationError {
-	// Sanitize inputs first
 	sanitizeReward(reward)
 
 	var errors []ValidationError
 
-	// Required fields
 	if reward.FamilyUID == "" {
-		errors = append(errors, ValidationError{Field: "family_uid", Message: ErrFamilyUIDRequiredField})
+		errors = append(errors, ValidationError{Field: "family_uid", Message: ErrFamilyUIDRequired})
 	}
 	if reward.Name == "" {
 		errors = append(errors, ValidationError{Field: "name", Message: ErrNameRequired})
@@ -118,19 +103,13 @@ func (h *APIHandler) ValidateRewardCreate(reward *models.Rewards) []ValidationEr
 	if reward.Tokens <= 0 {
 		errors = append(errors, ValidationError{Field: "tokens", Message: "Tokens must be greater than 0"})
 	}
-
-	// Validate tokens range
-	if reward.Tokens > 1000 {
+	if reward.Tokens > domain.MaxTokens {
 		errors = append(errors, ValidationError{Field: "tokens", Message: "Tokens too high (max 1000)"})
 	}
-
-	// Validate name length
-	if len(reward.Name) > 100 {
+	if len(reward.Name) > domain.MaxNameLength {
 		errors = append(errors, ValidationError{Field: "name", Message: "Name too long (max 100 characters)"})
 	}
-
-	// Validate description length
-	if len(reward.Description) > 500 {
+	if len(reward.Description) > domain.MaxDescriptionLength {
 		errors = append(errors, ValidationError{Field: "description", Message: "Description too long (max 500 characters)"})
 	}
 
@@ -139,33 +118,23 @@ func (h *APIHandler) ValidateRewardCreate(reward *models.Rewards) []ValidationEr
 
 // ValidateTokenAddRequest validates token add/subtract request
 func (h *APIHandler) ValidateTokenAddRequest(req *TokenAddRequest) []ValidationError {
-	// Sanitize inputs first
 	sanitizeTokenAddRequest(req)
 
 	var errors []ValidationError
 
-	// Amount cannot be zero
 	if req.Amount == 0 {
 		errors = append(errors, ValidationError{Field: "amount", Message: "Amount cannot be zero"})
 	}
-
-	// Type is required
 	if req.Type == "" {
 		errors = append(errors, ValidationError{Field: "type", Message: "Type is required"})
 	}
-
-	// Validate type
 	if req.Type != "" && !h.validateTokenType(req.Type) {
 		errors = append(errors, ValidationError{Field: "type", Message: ErrInvalidTokenType})
 	}
-
-	// Validate amount range
-	if req.Amount < -1000 || req.Amount > 1000 {
+	if req.Amount < -domain.MaxTokens || req.Amount > domain.MaxTokens {
 		errors = append(errors, ValidationError{Field: "amount", Message: "Amount must be between -1000 and 1000"})
 	}
-
-	// Validate description length
-	if len(req.Description) > 500 {
+	if len(req.Description) > domain.MaxDescriptionLength {
 		errors = append(errors, ValidationError{Field: "description", Message: "Description too long (max 500 characters)"})
 	}
 

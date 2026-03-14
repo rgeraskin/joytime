@@ -79,7 +79,7 @@ func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Reque
 	}
 
 	if request.UserID == "" {
-		h.respondError(w, http.StatusBadRequest, ErrUserIDRequiredField)
+		h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
 		return
 	}
 
