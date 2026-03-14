@@ -21,7 +21,10 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-var testHandler *APIHandler
+var (
+	testHandler *APIHandler
+	testDB      *gorm.DB
+)
 
 // parseSuccessResponse parses a success response and extracts the data
 func parseSuccessResponse(w *httptest.ResponseRecorder, target any) error {
@@ -53,12 +56,12 @@ func assertSuccessResponse(
 
 // cleanupTestData removes all test data from database in correct order to handle foreign key constraints
 func cleanupTestData() {
-	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.TokenHistory{})
-	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Tokens{})
-	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Tasks{})
-	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Rewards{})
-	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Users{})
-	testHandler.DB().Unscoped().Where("1 = 1").Delete(&models.Families{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.TokenHistory{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.Tokens{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.Tasks{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.Rewards{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.Users{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.Families{})
 }
 
 // migrateTestSchema migrates all required models for testing
@@ -79,7 +82,7 @@ func migrateTestSchema(includeEntities bool) error {
 		&models.TokenHistory{},
 	)
 
-	return testHandler.DB().AutoMigrate(modelsList...)
+	return testDB.AutoMigrate(modelsList...)
 }
 
 // setupTestDBConnection establishes database connection for testing
@@ -103,7 +106,7 @@ func setupTestDBConnection() error {
 	)
 
 	var err error
-	db, err := gorm.Open(psql.Open(dsn), &gorm.Config{
+	testDB, err = gorm.Open(psql.Open(dsn), &gorm.Config{
 		Logger: gormlogger.New(
 			logger,
 			gormlogger.Config{
@@ -115,7 +118,7 @@ func setupTestDBConnection() error {
 		return err
 	}
 
-	testHandler = NewAPIHandler(db, logger)
+	testHandler = NewAPIHandler(testDB, logger)
 	return nil
 }
 
@@ -160,7 +163,7 @@ func setupTestDB(t *testing.T) *models.Families {
 		Name: t.Name(),
 		UID:  uniqueUID,
 	}
-	result := testHandler.DB().Create(&family)
+	result := testDB.Create(&family)
 	if result.Error != nil {
 		t.Fatalf("Failed to create family: %v", result.Error)
 	}
@@ -189,7 +192,7 @@ func setupServiceTestData(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	err = testHandler.DB().Create(parent).Error
+	err = testDB.Create(parent).Error
 	require.NoError(t, err)
 
 	// Create child user
@@ -200,7 +203,7 @@ func setupServiceTestData(
 		FamilyUID: family.UID,
 		Platform:  "telegram",
 	}
-	err = testHandler.DB().Create(child).Error
+	err = testDB.Create(child).Error
 	require.NoError(t, err)
 
 	// Create tokens for child
@@ -208,7 +211,7 @@ func setupServiceTestData(
 		UserID: child.UserID,
 		Tokens: 50,
 	}
-	err = testHandler.DB().Create(tokens).Error
+	err = testDB.Create(tokens).Error
 	require.NoError(t, err)
 
 	// Create service context for parent (has most permissions)
@@ -268,7 +271,7 @@ func TestGenerateUniqueFamilyUID(t *testing.T) {
 
 		// Verify it's actually in the database
 		var dbFamily models.Families
-		err = testHandler.DB().Where("uid = ?", family.UID).First(&dbFamily).Error
+		err = testDB.Where("uid = ?", family.UID).First(&dbFamily).Error
 		assert.NoError(t, err)
 		assert.Equal(t, family.Name, dbFamily.Name)
 	})

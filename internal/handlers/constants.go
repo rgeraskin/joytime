@@ -11,7 +11,5 @@ const (
 	ErrInvalidJSONFormat     = "invalid JSON format"
 	ErrFamilyUIDRequired     = "family_uid is required"
 	ErrUserIDRequired        = "user_id is required"
-	ErrInvalidTokenType      = "invalid token type"
 	ErrInvalidEntityEncoding = "invalid entity name encoding"
-	ErrNameRequired          = "name is required"
 )

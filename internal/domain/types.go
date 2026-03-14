@@ -59,19 +59,102 @@ func validationErr(msg string) error {
 	return fmt.Errorf("%w: %s", ErrValidation, msg)
 }
 
+// Common field validators
+
+func validateName(name string, required bool) error {
+	if required && name == "" {
+		return validationErr("name is required")
+	}
+	if len(name) > MaxNameLength {
+		return validationErr("name too long (max 100 characters)")
+	}
+	return nil
+}
+
+func validateDescription(desc string) error {
+	if len(desc) > MaxDescriptionLength {
+		return validationErr("description too long (max 500 characters)")
+	}
+	return nil
+}
+
+func validateTokensRequired(tokens int) error {
+	if tokens <= 0 {
+		return validationErr("tokens must be greater than 0")
+	}
+	if tokens > MaxTokens {
+		return validationErr("tokens too high (max 1000)")
+	}
+	return nil
+}
+
+func validateTokensOptional(tokens *int) error {
+	if tokens != nil && (*tokens < 0 || *tokens > MaxTokens) {
+		return validationErr("tokens must be between 0 and 1000")
+	}
+	return nil
+}
+
+func validateRole(role string) error {
+	if role != "" && role != string(RoleParent) && role != string(RoleChild) {
+		return validationErr("invalid role: parent or child only")
+	}
+	return nil
+}
+
+func validateStatus(status string) error {
+	if status != "" && status != TaskStatusNew && status != TaskStatusCheck && status != TaskStatusCompleted {
+		return validationErr("invalid status: new, check, or completed only")
+	}
+	return nil
+}
+
+// ValidateFamilyCreate validates a family creation request.
+func ValidateFamilyCreate(name, uid, createdByUserID string) error {
+	if uid != "" {
+		return validationErr("uid is auto-generated")
+	}
+	if createdByUserID != "" {
+		return validationErr("created_by_user_id is auto-generated")
+	}
+	return validateName(name, true)
+}
+
+// ValidateEntityCreate validates shared entity fields for task/reward creation.
+func ValidateEntityCreate(name, description string, tokens int) error {
+	if err := validateName(name, true); err != nil {
+		return err
+	}
+	if err := validateDescription(description); err != nil {
+		return err
+	}
+	return validateTokensRequired(tokens)
+}
+
+// ValidateTokenTransaction validates a token add/subtract request.
+func ValidateTokenTransaction(amount int, tokenType, description string) error {
+	if amount == 0 {
+		return validationErr("amount cannot be zero")
+	}
+	if amount < -MaxTokens || amount > MaxTokens {
+		return validationErr("amount must be between -1000 and 1000")
+	}
+	if tokenType == "" {
+		return validationErr("type is required")
+	}
+	if tokenType != TokenTypeTaskCompleted && tokenType != TokenTypeRewardClaimed && tokenType != TokenTypeManualAdjustment {
+		return validationErr("invalid token type")
+	}
+	return validateDescription(description)
+}
+
 // Update DTOs - these define exactly which fields can be updated
 type UpdateFamilyRequest struct {
 	Name string `json:"name"`
 }
 
 func (r *UpdateFamilyRequest) Validate() error {
-	if r.Name == "" {
-		return validationErr("family name cannot be empty")
-	}
-	if len(r.Name) > MaxNameLength {
-		return validationErr("name too long (max 100 characters)")
-	}
-	return nil
+	return validateName(r.Name, true)
 }
 
 type UpdateUserRequest struct {
@@ -80,13 +163,10 @@ type UpdateUserRequest struct {
 }
 
 func (r *UpdateUserRequest) Validate() error {
-	if len(r.Name) > MaxNameLength {
-		return validationErr("name too long (max 100 characters)")
+	if err := validateName(r.Name, false); err != nil {
+		return err
 	}
-	if r.Role != "" && r.Role != string(RoleParent) && r.Role != string(RoleChild) {
-		return validationErr("invalid role: parent or child only")
-	}
-	return nil
+	return validateRole(r.Role)
 }
 
 type UpdateTaskRequest struct {
@@ -97,19 +177,16 @@ type UpdateTaskRequest struct {
 }
 
 func (r *UpdateTaskRequest) Validate() error {
-	if len(r.Name) > MaxNameLength {
-		return validationErr("name too long (max 100 characters)")
+	if err := validateName(r.Name, false); err != nil {
+		return err
 	}
-	if len(r.Description) > MaxDescriptionLength {
-		return validationErr("description too long (max 500 characters)")
+	if err := validateDescription(r.Description); err != nil {
+		return err
 	}
-	if r.Tokens != nil && (*r.Tokens < 0 || *r.Tokens > MaxTokens) {
-		return validationErr("tokens must be between 0 and 1000")
+	if err := validateTokensOptional(r.Tokens); err != nil {
+		return err
 	}
-	if r.Status != "" && r.Status != TaskStatusNew && r.Status != TaskStatusCheck && r.Status != TaskStatusCompleted {
-		return validationErr("invalid status: new, check, or completed only")
-	}
-	return nil
+	return validateStatus(r.Status)
 }
 
 type UpdateRewardRequest struct {
@@ -119,14 +196,11 @@ type UpdateRewardRequest struct {
 }
 
 func (r *UpdateRewardRequest) Validate() error {
-	if len(r.Name) > MaxNameLength {
-		return validationErr("name too long (max 100 characters)")
+	if err := validateName(r.Name, false); err != nil {
+		return err
 	}
-	if len(r.Description) > MaxDescriptionLength {
-		return validationErr("description too long (max 500 characters)")
+	if err := validateDescription(r.Description); err != nil {
+		return err
 	}
-	if r.Tokens != nil && (*r.Tokens < 0 || *r.Tokens > MaxTokens) {
-		return validationErr("tokens must be between 0 and 1000")
-	}
-	return nil
+	return validateTokensOptional(r.Tokens)
 }

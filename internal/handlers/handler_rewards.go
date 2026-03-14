@@ -57,8 +57,8 @@ func (h *APIHandler) createReward(w http.ResponseWriter, r *http.Request, authCt
 		return
 	}
 
-	if validationErrors := h.ValidateRewardCreate(&reward); len(validationErrors) > 0 {
-		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+	if err := validateRewardCreate(&reward); err != nil {
+		h.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -124,7 +124,7 @@ func (h *APIHandler) claimReward(w http.ResponseWriter, r *http.Request, authCtx
 		return
 	}
 
-	if err := h.services.TokenService.ClaimReward(r.Context(), authCtx, reward.ID); err != nil {
+	if err := h.services.TokenService.ClaimReward(r.Context(), authCtx, reward); err != nil {
 		h.respondServiceError(w, err, "failed to claim reward")
 		return
 	}

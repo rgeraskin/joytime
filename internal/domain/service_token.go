@@ -185,25 +185,20 @@ func (s *TokenService) GetTokenHistory(
 	return history, err
 }
 
-// ClaimReward processes a reward claim with atomic balance check + deduction
+// ClaimReward processes a reward claim with atomic balance check + deduction.
+// The caller must supply the full reward (already fetched and authorized).
 func (s *TokenService) ClaimReward(
 	ctx context.Context,
 	authCtx *AuthContext,
-	rewardID uint,
+	reward *models.Rewards,
 ) error {
-	// Get reward details to check family and authorization
-	var reward models.Rewards
-	err := s.db.WithContext(ctx).Where("id = ?", rewardID).First(&reward).Error
-	if err != nil {
-		return err
-	}
-
 	// Check permission and family access using Casbin
 	if err := s.auth.RequirePermission(authCtx, "rewards", "claim", reward.FamilyUID); err != nil {
 		return err
 	}
 
 	// Atomic balance check + deduction inside a single transaction
+	rewardID := reward.ID
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return s.addTokensInTx(
 			tx,

@@ -66,8 +66,8 @@ func (h *APIHandler) createFamily(
 		return
 	}
 
-	if validationErrors := h.ValidateFamilyCreate(&family); len(validationErrors) > 0 {
-		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+	if err := validateFamilyCreate(&family); err != nil {
+		h.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

@@ -31,11 +31,6 @@ func NewAPIHandler(database *gorm.DB, logger *log.Logger) *APIHandler {
 	}
 }
 
-// DB returns the underlying database connection for test setup/teardown.
-func (h *APIHandler) DB() *gorm.DB {
-	return h.services.TestDB()
-}
-
 // ErrorResponse represents a standardized error response
 type ErrorResponse struct {
 	Error   string `json:"error"`
@@ -56,12 +51,6 @@ type TokenAddRequest struct {
 	Description string `json:"description"`
 	TaskID      *uint  `json:"task_id,omitempty"`
 	RewardID    *uint  `json:"reward_id,omitempty"`
-}
-
-// ValidationError represents validation errors
-type ValidationError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
 }
 
 // respondJSON sends a JSON response
@@ -137,11 +126,3 @@ func parseFamilyEntityPath(path, prefix string) (familyUID, entityName string, e
 
 	return familyUID, entityName, nil
 }
-
-// validateTokenType checks if token operation type is valid
-func (h *APIHandler) validateTokenType(tokenType string) bool {
-	return tokenType == domain.TokenTypeTaskCompleted ||
-		tokenType == domain.TokenTypeRewardClaimed ||
-		tokenType == domain.TokenTypeManualAdjustment
-}
-

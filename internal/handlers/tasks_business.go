@@ -59,8 +59,8 @@ func (h *APIHandler) createTask(w http.ResponseWriter, r *http.Request, authCtx 
 		return
 	}
 
-	if validationErrors := h.ValidateTaskCreate(&task); len(validationErrors) > 0 {
-		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+	if err := validateTaskCreate(&task); err != nil {
+		h.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

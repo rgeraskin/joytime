@@ -262,7 +262,8 @@ func TestRewardClaimHTTP(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
 		var errResp ErrorResponse
-		json.NewDecoder(w.Body).Decode(&errResp)
+		err = json.NewDecoder(w.Body).Decode(&errResp)
+		assert.NoError(t, err)
 		assert.Contains(t, errResp.Error, "insufficient tokens")
 	})
 
@@ -334,7 +335,8 @@ func TestRespondServiceError(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 
 			var resp ErrorResponse
-			json.NewDecoder(w.Body).Decode(&resp)
+			err := json.NewDecoder(w.Body).Decode(&resp)
+			assert.NoError(t, err)
 			assert.Contains(t, resp.Error, tt.wantContains)
 		})
 	}

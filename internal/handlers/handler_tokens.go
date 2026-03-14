@@ -73,8 +73,8 @@ func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if validationErrors := h.ValidateTokenAddRequest(&request); len(validationErrors) > 0 {
-		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+	if err := validateTokenAddRequest(&request); err != nil {
+		h.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -118,8 +118,8 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 		return
 	}
 
-	if validationErrors := h.ValidateTokenAddRequest(&update); len(validationErrors) > 0 {
-		h.respondError(w, http.StatusBadRequest, FormatValidationErrors(validationErrors))
+	if err := validateTokenAddRequest(&update); err != nil {
+		h.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

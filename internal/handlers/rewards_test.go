@@ -300,7 +300,7 @@ func TestRewardClaimIntegration(t *testing.T) {
 	t.Run("Child can claim reward with sufficient tokens", func(t *testing.T) {
 		// Child starts with 50 tokens (from setupServiceTestData)
 		err := testHandler.services.TokenService.ClaimReward(
-			context.Background(), childCtx, reward.ID,
+			context.Background(), childCtx, reward,
 		)
 		assert.NoError(t, err)
 
@@ -348,7 +348,7 @@ func TestRewardClaimIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		err = testHandler.services.TokenService.ClaimReward(
-			context.Background(), childCtx, expensiveReward.ID,
+			context.Background(), childCtx, expensiveReward,
 		)
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, domain.ErrInsufficientTokens)
