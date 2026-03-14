@@ -149,7 +149,7 @@ func (s *UserService) DeleteUser(
 
 	// Business Rule: Parents cannot delete themselves
 	if authCtx.UserID == userID {
-		return ErrUnauthorized
+		return ErrCannotDeleteSelf
 	}
 
 	return s.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.Users{}).Error

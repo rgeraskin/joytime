@@ -33,9 +33,9 @@ func SetupAPI(database *gorm.DB, _logger *log.Logger) *http.Server {
 	mux.HandleFunc("/api/v1/rewards", handler.handleRewards)
 	mux.HandleFunc("/api/v1/rewards/", handler.handleRewardsByFamily)
 	mux.HandleFunc("/api/v1/tokens", handler.handleTokens)
-	mux.HandleFunc("/api/v1/tokens/", handler.handleUserTokens)
+	mux.HandleFunc("/api/v1/tokens/users/", handler.handleUserTokens)
 	mux.HandleFunc("/api/v1/token-history", handler.handleTokenHistory)
-	mux.HandleFunc("/api/v1/token-history/", handler.handleUserTokenHistory)
+	mux.HandleFunc("/api/v1/token-history/users/", handler.handleUserTokenHistory)
 
 	// Special endpoints that might not need auth (like health checks, family registration)
 	mux.HandleFunc("/api/v1/health", handler.handleHealth)

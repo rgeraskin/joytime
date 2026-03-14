@@ -120,6 +120,10 @@ func (h *APIHandler) updateUser(w http.ResponseWriter, r *http.Request, authCtx 
 func (h *APIHandler) deleteUser(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
 	err := h.services.UserService.DeleteUser(r.Context(), authCtx, userID)
 	if err != nil {
+		if errors.Is(err, domain.ErrCannotDeleteSelf) {
+			h.respondError(w, http.StatusBadRequest, "Cannot delete yourself")
+			return
+		}
 		if errors.Is(err, domain.ErrUnauthorized) {
 			h.respondError(w, http.StatusForbidden, "Access denied")
 			return

@@ -12,14 +12,30 @@ const (
 	RoleChild  UserRole = "child"
 )
 
+// Task status constants
+const (
+	TaskStatusNew       = "new"
+	TaskStatusCheck     = "check"
+	TaskStatusCompleted = "completed"
+)
+
+// Token operation type constants
+const (
+	TokenTypeTaskCompleted    = "task_completed"
+	TokenTypeRewardClaimed    = "reward_claimed"
+	TokenTypeManualAdjustment = "manual_adjustment"
+)
+
 // Business logic errors
 var (
 	ErrUnauthorized          = errors.New("unauthorized operation")
+	ErrCannotDeleteSelf      = errors.New("cannot delete yourself")
 	ErrInsufficientTokens    = errors.New("insufficient tokens")
 	ErrTaskAlreadyCompleted  = errors.New("task is already completed")
 	ErrTaskInvalidForReview  = errors.New("task must be in 'new' status to submit for review")
 	ErrTaskInvalidForApprove = errors.New("task must be in 'new' or 'check' status to complete")
 	ErrNoAssignedChild       = errors.New("task has no assigned child")
+	ErrTaskNotAssignedToUser = errors.New("task is not assigned to you")
 )
 
 // AuthContext represents the authentication context of who is making the request

@@ -39,7 +39,7 @@ func (s *TaskService) CreateTask(
 
 	// Set default status if not provided
 	if task.Status == "" {
-		task.Status = "new"
+		task.Status = TaskStatusNew
 	}
 
 	return s.db.WithContext(ctx).Create(task).Error
@@ -84,16 +84,22 @@ func (s *TaskService) CompleteTask(
 	}
 
 	// Validate status transitions
-	if task.Status == "completed" {
+	if task.Status == TaskStatusCompleted {
 		return nil, ErrTaskAlreadyCompleted
 	}
 
 	if authCtx.UserRole == RoleChild {
 		// Child marks task as "check" — needs parent verification
-		if task.Status != "new" {
+		if task.Status != TaskStatusNew {
 			return nil, ErrTaskInvalidForReview
 		}
-		task.Status = "check"
+
+		// If task is already assigned, only the assigned child can submit
+		if task.AssignedToUserID != "" && task.AssignedToUserID != authCtx.UserID {
+			return nil, ErrTaskNotAssignedToUser
+		}
+
+		task.Status = TaskStatusCheck
 		// Record which child submitted for review
 		task.AssignedToUserID = authCtx.UserID
 
@@ -104,7 +110,7 @@ func (s *TaskService) CompleteTask(
 	}
 
 	// Parent approves — mark as completed and award tokens to the assigned child
-	if task.Status != "check" && task.Status != "new" {
+	if task.Status != TaskStatusCheck && task.Status != TaskStatusNew {
 		return nil, ErrTaskInvalidForApprove
 	}
 
@@ -114,7 +120,7 @@ func (s *TaskService) CompleteTask(
 
 	// Wrap status update + token award in a single transaction
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		task.Status = "completed"
+		task.Status = TaskStatusCompleted
 		if err := tx.Save(&task).Error; err != nil {
 			return err
 		}

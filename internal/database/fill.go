@@ -12,7 +12,9 @@ func Fill(db *gorm.DB) error {
 		UID:             "sa726q",
 		CreatedByUserID: "user_220328701",
 	}
-	db.Create(&family)
+	if err := db.Create(&family).Error; err != nil {
+		return err
+	}
 
 	// Create parent user
 	parent := models.Users{
@@ -22,7 +24,9 @@ func Fill(db *gorm.DB) error {
 		FamilyUID: "sa726q",
 		Platform:  "telegram",
 	}
-	db.Create(&parent)
+	if err := db.Create(&parent).Error; err != nil {
+		return err
+	}
 
 	// Create child user
 	child := models.Users{
@@ -32,14 +36,18 @@ func Fill(db *gorm.DB) error {
 		FamilyUID: "sa726q",
 		Platform:  "telegram",
 	}
-	db.Create(&child)
+	if err := db.Create(&child).Error; err != nil {
+		return err
+	}
 
 	// Create tokens for child
 	tokens := models.Tokens{
 		UserID: "user_123456789",
 		Tokens: 10,
 	}
-	db.Create(&tokens)
+	if err := db.Create(&tokens).Error; err != nil {
+		return err
+	}
 
 	// Create initial token history
 	history := models.TokenHistory{
@@ -48,10 +56,12 @@ func Fill(db *gorm.DB) error {
 		Type:        "manual_adjustment",
 		Description: "Начальный баланс",
 	}
-	db.Create(&history)
+	if err := db.Create(&history).Error; err != nil {
+		return err
+	}
 
 	// Create tasks
-	db.Create(&[]models.Tasks{
+	if err := db.Create(&[]models.Tasks{
 		{
 			Entities: models.Entities{
 				FamilyUID: "sa726q",
@@ -157,10 +167,12 @@ func Fill(db *gorm.DB) error {
 				Tokens:    6,
 			},
 		},
-	})
+	}).Error; err != nil {
+		return err
+	}
 
 	// Create rewards
-	db.Create(&[]models.Rewards{
+	if err := db.Create(&[]models.Rewards{
 		{
 			Entities: models.Entities{
 				FamilyUID: "sa726q",
@@ -217,7 +229,9 @@ func Fill(db *gorm.DB) error {
 				Tokens:    12,
 			},
 		},
-	})
+	}).Error; err != nil {
+		return err
+	}
 
 	return nil
 }

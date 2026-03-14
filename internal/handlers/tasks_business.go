@@ -209,7 +209,8 @@ func (h *APIHandler) completeTask(w http.ResponseWriter, r *http.Request, authCt
 		if errors.Is(err, domain.ErrTaskAlreadyCompleted) ||
 			errors.Is(err, domain.ErrTaskInvalidForReview) ||
 			errors.Is(err, domain.ErrTaskInvalidForApprove) ||
-			errors.Is(err, domain.ErrNoAssignedChild) {
+			errors.Is(err, domain.ErrNoAssignedChild) ||
+			errors.Is(err, domain.ErrTaskNotAssignedToUser) {
 			h.respondError(w, http.StatusBadRequest, err.Error())
 			return
 		}

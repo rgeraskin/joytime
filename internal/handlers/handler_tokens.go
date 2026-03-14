@@ -78,7 +78,7 @@ func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/tokens/history/")
+		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/token-history/users/")
 		if userID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
 			return

@@ -2,8 +2,9 @@ package domain
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -36,10 +37,14 @@ func NewFamilyService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) 
 func (s *FamilyService) generateUniqueFamilyUID(ctx context.Context) (string, error) {
 	maxAttempts := 10
 	for range maxAttempts {
-		// Generate random UID
+		// Generate random UID using crypto/rand
 		familyUIDBytes := make([]byte, familyUIDLength)
 		for j := range familyUIDBytes {
-			familyUIDBytes[j] = familyUIDCharset[rand.Intn(len(familyUIDCharset))]
+			n, err := rand.Int(rand.Reader, big.NewInt(int64(len(familyUIDCharset))))
+			if err != nil {
+				return "", fmt.Errorf("failed to generate random UID: %w", err)
+			}
+			familyUIDBytes[j] = familyUIDCharset[n.Int64()]
 		}
 		uid := string(familyUIDBytes)
 
@@ -87,7 +92,10 @@ func (s *FamilyService) CreateFamily(ctx context.Context, family *models.Familie
 	return s.db.WithContext(ctx).Create(family).Error
 }
 
-// CreateFamilyWithAuth creates a family with authorization check
+// CreateFamilyWithAuth creates a family with authorization check.
+// Uses authCtx.FamilyUID for both sides of the family-scoping check,
+// so this effectively checks "does this role have family:create permission?"
+// without scoping to a specific family (since we're creating a new one).
 func (s *FamilyService) CreateFamilyWithAuth(ctx context.Context, authCtx *AuthContext, family *models.Families) error {
 	if err := s.auth.RequirePermission(authCtx, "family", "create", authCtx.FamilyUID); err != nil {
 		return err

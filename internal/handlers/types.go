@@ -87,8 +87,12 @@ func (h *APIHandler) respondSuccess(w http.ResponseWriter, status int, data any)
 	h.respondJSON(w, status, SuccessResponse{Data: data})
 }
 
-// decodeJSON decodes JSON request body
+// maxRequestBodySize is the maximum allowed request body size (1MB)
+const maxRequestBodySize = 1 << 20
+
+// decodeJSON decodes JSON request body with size limit
 func (h *APIHandler) decodeJSON(r *http.Request, v any) error {
+	r.Body = http.MaxBytesReader(nil, r.Body, maxRequestBodySize)
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
