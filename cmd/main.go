@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/charmbracelet/log"
-	"github.com/rgeraskin/joytime/internal/api"
-	"github.com/rgeraskin/joytime/internal/postgres"
+	"github.com/rgeraskin/joytime/internal/database"
+	"github.com/rgeraskin/joytime/internal/handlers"
 )
 
 var logger *log.Logger
@@ -43,7 +43,7 @@ func main() {
 
 	// Get database
 	logger.Info("Getting database...")
-	db, err := postgres.NewDB(&config.DB, fill, logger)
+	db, err := database.NewDB(&config.DB, fill, logger)
 	if err != nil {
 		logger.Fatal("Failed to get database", "error", err)
 	}
@@ -55,14 +55,14 @@ func main() {
 	}
 
 	// Start HTTP API server
-	apiServer := api.SetupAPI(db, logger)
+	apiServer := handlers.SetupAPI(db, logger)
 	// go func() {
-	// 	logger.Info("Starting HTTP API server", "port", api.PORT)
+	// 	logger.Info("Starting HTTP API server", "port", handlers.PORT)
 	// 	if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 	// 		logger.Fatal("HTTP API server error", "error", err)
 	// 	}
 	// }()
-	logger.Info("Starting HTTP API server", "address", api.ADDRESS)
+	logger.Info("Starting HTTP API server", "address", handlers.ADDRESS)
 	if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Fatal("HTTP API server error", "error", err)
 	}

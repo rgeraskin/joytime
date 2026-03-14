@@ -1,4 +1,4 @@
-package postgres
+package models
 
 import (
 	"gorm.io/gorm"

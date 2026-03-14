@@ -1,4 +1,4 @@
-package api
+package handlers
 
 const (
 	// User roles

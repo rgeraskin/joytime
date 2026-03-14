@@ -1,0 +1,127 @@
+package domain
+
+import (
+	"context"
+	"fmt"
+	"math/rand"
+
+	"github.com/charmbracelet/log"
+	"github.com/rgeraskin/joytime/internal/models"
+	"gorm.io/gorm"
+)
+
+// FamilyService handles family-related business logic
+type FamilyService struct {
+	db     *gorm.DB
+	logger *log.Logger
+	auth   *CasbinAuthService
+}
+
+const (
+	// Family UID generation constants
+	familyUIDLength  = 6
+	familyUIDCharset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Excluded confusing chars: 0,O,1,I
+)
+
+// NewFamilyService creates a new family service
+func NewFamilyService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *FamilyService {
+	return &FamilyService{
+		db:     db,
+		logger: logger,
+		auth:   auth,
+	}
+}
+
+// generateUniqueFamilyUID generates a unique family UID
+func (s *FamilyService) generateUniqueFamilyUID(ctx context.Context) (string, error) {
+	maxAttempts := 10
+	for range maxAttempts {
+		// Generate random UID
+		familyUIDBytes := make([]byte, familyUIDLength)
+		for j := range familyUIDBytes {
+			familyUIDBytes[j] = familyUIDCharset[rand.Intn(len(familyUIDCharset))]
+		}
+		uid := string(familyUIDBytes)
+
+		// Check if UID already exists
+		var count int64
+		if err := s.db.WithContext(ctx).Model(&models.Families{}).
+			Where("uid = ?", uid).Count(&count).Error; err != nil {
+			return "", err
+		}
+
+		if count == 0 {
+			return uid, nil
+		}
+	}
+	return "", fmt.Errorf("failed to generate unique family UID after %d attempts", maxAttempts)
+}
+
+// GetFamily retrieves family information with business rule enforcement
+func (s *FamilyService) GetFamily(
+	ctx context.Context,
+	authCtx *AuthContext,
+	familyUID string,
+) (*models.Families, error) {
+	// Check permission and family access using Casbin
+	if err := s.auth.RequirePermission(authCtx, "family", "read", familyUID); err != nil {
+		return nil, err
+	}
+
+	var family models.Families
+	err := s.db.WithContext(ctx).Where("uid = ?", familyUID).First(&family).Error
+	return &family, err
+}
+
+// CreateFamily creates a new family with auto-generated UID
+func (s *FamilyService) CreateFamily(ctx context.Context, family *models.Families) error {
+	// Generate unique UID if not provided
+	if family.UID == "" {
+		uid, err := s.generateUniqueFamilyUID(ctx)
+		if err != nil {
+			return err
+		}
+		family.UID = uid
+	}
+
+	return s.db.WithContext(ctx).Create(family).Error
+}
+
+// CreateFamilyWithUID creates a family with a specific UID (for testing/admin use)
+func (s *FamilyService) CreateFamilyWithUID(ctx context.Context, family *models.Families) error {
+	return s.db.WithContext(ctx).Create(family).Error
+}
+
+// UpdateFamily updates family information with business rule enforcement
+func (s *FamilyService) UpdateFamily(
+	ctx context.Context,
+	authCtx *AuthContext,
+	familyUID string,
+	updates *UpdateFamilyRequest,
+) (*models.Families, error) {
+	// Check permission and family access using Casbin
+	if err := s.auth.RequirePermission(authCtx, "family", "update", familyUID); err != nil {
+		return nil, err
+	}
+
+	// Validate the update request
+	if updates.Name == "" {
+		return nil, fmt.Errorf("family name cannot be empty")
+	}
+
+	var family models.Families
+	err := s.db.WithContext(ctx).Where("uid = ?", familyUID).First(&family).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Use Select to specify exactly which fields can be updated
+	err = s.db.WithContext(ctx).Model(&family).Select("name").Updates(map[string]any{
+		"name": updates.Name,
+	}).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &family, nil
+}

@@ -1,11 +1,11 @@
-package api
+package handlers
 
 import (
 	"fmt"
 	"html"
 	"strings"
 
-	"github.com/rgeraskin/joytime/internal/postgres"
+	"github.com/rgeraskin/joytime/internal/models"
 )
 
 // sanitizeInput sanitizes user input by escaping HTML and trimming whitespace
@@ -14,7 +14,7 @@ func sanitizeInput(input string) string {
 }
 
 // sanitizeInputs sanitizes all string fields in the provided data
-func sanitizeUser(user *postgres.Users) {
+func sanitizeUser(user *models.Users) {
 	user.Name = sanitizeInput(user.Name)
 	user.UserID = sanitizeInput(user.UserID)
 	user.FamilyUID = sanitizeInput(user.FamilyUID)
@@ -24,26 +24,26 @@ func sanitizeUser(user *postgres.Users) {
 	user.InputContext = sanitizeInput(user.InputContext)
 }
 
-func sanitizeFamily(family *postgres.Families) {
+func sanitizeFamily(family *models.Families) {
 	family.Name = sanitizeInput(family.Name)
 	family.UID = sanitizeInput(family.UID)
 	family.CreatedByUserID = sanitizeInput(family.CreatedByUserID)
 }
 
-func sanitizeTask(task *postgres.Tasks) {
+func sanitizeTask(task *models.Tasks) {
 	task.Name = sanitizeInput(task.Name)
 	task.Description = sanitizeInput(task.Description)
 	task.FamilyUID = sanitizeInput(task.FamilyUID)
 	task.Status = sanitizeInput(task.Status)
 }
 
-func sanitizeReward(reward *postgres.Rewards) {
+func sanitizeReward(reward *models.Rewards) {
 	reward.Name = sanitizeInput(reward.Name)
 	reward.Description = sanitizeInput(reward.Description)
 	reward.FamilyUID = sanitizeInput(reward.FamilyUID)
 }
 
-func sanitizeEntity(entity *postgres.Entities) {
+func sanitizeEntity(entity *models.Entities) {
 	entity.Name = sanitizeInput(entity.Name)
 	entity.Description = sanitizeInput(entity.Description)
 	entity.FamilyUID = sanitizeInput(entity.FamilyUID)
@@ -55,7 +55,7 @@ func sanitizeTokenAddRequest(req *TokenAddRequest) {
 }
 
 // ValidateUserCreate validates user creation request
-func (h *APIHandler) ValidateUserCreate(user *postgres.Users) []ValidationError {
+func (h *APIHandler) ValidateUserCreate(user *models.Users) []ValidationError {
 	// Sanitize inputs first
 	sanitizeUser(user)
 
@@ -99,7 +99,7 @@ func (h *APIHandler) ValidateUserCreate(user *postgres.Users) []ValidationError 
 }
 
 // ValidateUserUpdate validates user update request
-func (h *APIHandler) ValidateUserUpdate(user *postgres.Users) []ValidationError {
+func (h *APIHandler) ValidateUserUpdate(user *models.Users) []ValidationError {
 	// Sanitize inputs first
 	sanitizeUser(user)
 
@@ -124,7 +124,7 @@ func (h *APIHandler) ValidateUserUpdate(user *postgres.Users) []ValidationError 
 }
 
 // ValidateFamilyCreate validates family creation request
-func (h *APIHandler) ValidateFamilyCreate(family *postgres.Families) []ValidationError {
+func (h *APIHandler) ValidateFamilyCreate(family *models.Families) []ValidationError {
 	// Sanitize inputs first
 	sanitizeFamily(family)
 
@@ -152,7 +152,7 @@ func (h *APIHandler) ValidateFamilyCreate(family *postgres.Families) []Validatio
 }
 
 // ValidateFamilyUpdate validates family update request
-func (h *APIHandler) ValidateFamilyUpdate(family *postgres.Families) []ValidationError {
+func (h *APIHandler) ValidateFamilyUpdate(family *models.Families) []ValidationError {
 	// Sanitize inputs first
 	sanitizeFamily(family)
 
@@ -172,7 +172,7 @@ func (h *APIHandler) ValidateFamilyUpdate(family *postgres.Families) []Validatio
 }
 
 // ValidateTaskCreate validates task creation request
-func (h *APIHandler) ValidateTaskCreate(task *postgres.Tasks) []ValidationError {
+func (h *APIHandler) ValidateTaskCreate(task *models.Tasks) []ValidationError {
 	// Sanitize inputs first
 	sanitizeTask(task)
 
@@ -208,7 +208,7 @@ func (h *APIHandler) ValidateTaskCreate(task *postgres.Tasks) []ValidationError 
 }
 
 // ValidateRewardCreate validates reward creation request
-func (h *APIHandler) ValidateRewardCreate(reward *postgres.Rewards) []ValidationError {
+func (h *APIHandler) ValidateRewardCreate(reward *models.Rewards) []ValidationError {
 	// Sanitize inputs first
 	sanitizeReward(reward)
 
@@ -244,7 +244,7 @@ func (h *APIHandler) ValidateRewardCreate(reward *postgres.Rewards) []Validation
 }
 
 // ValidateEntityUpdate validates entity update request
-func (h *APIHandler) ValidateEntityUpdate(entity *postgres.Entities) []ValidationError {
+func (h *APIHandler) ValidateEntityUpdate(entity *models.Entities) []ValidationError {
 	// Sanitize inputs first
 	sanitizeEntity(entity)
 

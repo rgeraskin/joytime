@@ -1,10 +1,11 @@
-package postgres
+package database
 
 import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
-	"gorm.io/driver/postgres"
+	"github.com/rgeraskin/joytime/internal/models"
+	postgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -43,12 +44,12 @@ func NewDB(config *Config, fill_only bool, logger *log.Logger) (*gorm.DB, error)
 
 	logger.Info("Migrating database...")
 	err = db.AutoMigrate(
-		&Users{},
-		&Families{},
-		&Tokens{},
-		&Tasks{},
-		&Rewards{},
-		&TokenHistory{},
+		&models.Users{},
+		&models.Families{},
+		&models.Tokens{},
+		&models.Tasks{},
+		&models.Rewards{},
+		&models.TokenHistory{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
@@ -56,7 +57,7 @@ func NewDB(config *Config, fill_only bool, logger *log.Logger) (*gorm.DB, error)
 
 	if fill_only {
 		logger.Info("Filling database...")
-		err = fill(db)
+		err = Fill(db)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fill database: %w", err)
 		}

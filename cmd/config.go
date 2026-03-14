@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rgeraskin/joytime/internal/postgres"
+	"github.com/rgeraskin/joytime/internal/database"
 )
 
 type Config struct {
 	Token string
-	DB    postgres.Config
+	DB    database.Config
 }
 
 func NewConfig() (*Config, error) {

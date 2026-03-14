@@ -32,10 +32,10 @@ $BUILD_DIR/$APP_NAME
 # === Testing ===
 [tasks.test]
 description = "Run all tests"
-depends = ["db.clean"]
+depends = ["db:clean"]
 run = """
 echo '🐘 Starting PostgreSQL...'
-mise run db.up
+mise run db:up
 sleep 5
 echo '🧪 Running tests...'
 go test -v ./...
@@ -58,7 +58,7 @@ echo '📈 Report created: coverage.html'
 """
 
 # === Database ===
-[tasks."db.up"]
+[tasks."db:up"]
 description = "Start PostgreSQL in Docker"
 run = """
 echo '🐘 Starting PostgreSQL...'
@@ -66,45 +66,45 @@ docker compose up -d postgres
 echo "✅ PostgreSQL started on port $PGPORT"
 """
 
-[tasks."db.down"]
+[tasks."db:down"]
 description = "Stop PostgreSQL"
 run = """
 echo '🛑 Stopping PostgreSQL...'
 docker compose down postgres
 """
 
-[tasks."db.clean"]
+[tasks."db:clean"]
 description = "Stop PostgreSQL and remove volumes"
 run = """
 echo '🛑 Stopping PostgreSQL and removing volumes...'
 docker compose down -v postgres
 """
 
-[tasks."db.fill"]
+[tasks."db:fill"]
 description = "Start application with DB fill"
-depends = ["build", "db.up"]
+depends = ["build", "db:up"]
 run = """
-echo '🚀 Starting application to fill DB...'
+echo '🚀 Starting application to fill DB:..'
 $BUILD_DIR/$APP_NAME -fill
 """
 
-[tasks."db.logs"]
+[tasks."db:logs"]
 description = "Show PostgreSQL logs"
 run = "docker compose logs -f postgres"
 
-[tasks."db.shell"]
+[tasks."db:shell"]
 description = "Connect to PostgreSQL shell"
 run = "docker compose exec -it postgres psql -U ${PGUSER} -d ${PGDATABASE}"
 
-[tasks."db.shell-pipe"]
+[tasks."db:shell-pipe"]
 description = "Connect to PostgreSQL shell and pipe to it"
 run = "docker compose exec -T postgres psql -U ${PGUSER} -d ${PGDATABASE}"
 
-[tasks."db.reset"]
+[tasks."db:reset"]
 description = "Reset DB and fill with test data"
 run = """
-mise run db.down
-mise run db.fill
+mise run db:down
+mise run db:fill
 """
 
 # === Development ===
@@ -167,7 +167,7 @@ echo "⚠️  Don't forget to update settings in .env file!"
 # === Complex Tasks ===
 [tasks.dev]
 description = "Start full development environment"
-depends = ["dev-deps", "db.fill"]
+depends = ["dev-deps", "db:fill"]
 run = """
 echo '🚀 Starting development environment...'
 """
@@ -187,7 +187,7 @@ description = "Full project reset"
 run = """
 echo '🔄 Full project reset...'
 mise run clean
-mise run db.reset
+mise run db:reset
 mise run dev
 """
 
