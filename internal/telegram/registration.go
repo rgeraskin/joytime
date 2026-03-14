@@ -70,9 +70,9 @@ func (b *Bot) onFamilyCreate(c tele.Context) error {
 	}
 
 	if err := c.Send(fmt.Sprintf(
-		"Семья создана! Код: *%s*\n\nЕго нужно будет ввести остальным членам семьи",
+		"Семья создана\\! Код: `%s`\n\nЕго нужно будет ввести остальным членам семьи",
 		family.UID,
-	), tele.ModeMarkdown); err != nil {
+	), tele.ModeMarkdownV2); err != nil {
 		return err
 	}
 	return b.showParentMenu(c)

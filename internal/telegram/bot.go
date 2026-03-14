@@ -319,3 +319,15 @@ func btn(text, data string) tele.InlineButton {
 func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
 }
+
+// escapeMarkdownV2 escapes special characters for Telegram MarkdownV2
+func escapeMarkdownV2(s string) string {
+	replacer := strings.NewReplacer(
+		"_", "\\_", "*", "\\*", "[", "\\[", "]", "\\]",
+		"(", "\\(", ")", "\\)", "~", "\\~", "`", "\\`",
+		">", "\\>", "#", "\\#", "+", "\\+", "-", "\\-",
+		"=", "\\=", "|", "\\|", "{", "\\{", "}", "\\}",
+		".", "\\.", "!", "\\!",
+	)
+	return replacer.Replace(s)
+}

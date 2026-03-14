@@ -23,7 +23,7 @@ func (b *Bot) showChildMenu(c tele.Context) error {
 	kb := inlineKeyboard(
 		btnRow(
 			btn("Выполнить задание", "child_task_done"),
-			btn("Купить награду", "child_reward_claim"),
+			btn("Получить награду", "child_reward_claim"),
 		),
 	)
 	return c.Send(fmt.Sprintf("Твой баланс: %d 💎", tokens.Tokens), kb)
