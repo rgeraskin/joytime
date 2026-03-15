@@ -91,7 +91,10 @@ func (b *Bot) onTaskDonePrompt(c tele.Context) error {
 	}
 
 	if len(available) == 0 {
-		return c.Send("Нет доступных заданий", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))))
+		return c.Send(
+			"Нет доступных заданий",
+			inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))),
+		)
 	}
 
 	items := make([]string, len(available))
@@ -137,7 +140,7 @@ func (b *Bot) onTaskDonePick(c tele.Context, num int) error {
 	}
 
 	if err := c.Send(fmt.Sprintf(
-		"✅ Задание \"%s\" отмечено выполненным!\nПосле проверки родителем ты получишь %d 💎",
+		"✅ Задание \"%s\" отмечено выполненным!\n\nПосле проверки родителем ты получишь %d 💎",
 		task.Name, task.Tokens,
 	)); err != nil {
 		return err

@@ -180,6 +180,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return nil
 
 	// Registration
+	case "back_welcome":
+		return b.showWelcome(c)
 	case "family_create":
 		return b.onFamilyCreate(c)
 	case "invite_join":
@@ -374,6 +376,10 @@ func (b *Bot) setState(tgID int64, state, inputCtx string) error {
 func (b *Bot) internalError(c tele.Context, msg string, err error) error {
 	b.logger.Error(msg, "error", err, "tg_id", c.Sender().ID)
 	return c.Send("❌ Внутренняя ошибка. Попробуй /start")
+}
+
+func backKeyboard(callback string) *tele.ReplyMarkup {
+	return inlineKeyboard(btnRow(btn("⬅️ Назад", callback)))
 }
 
 func parentMenuKeyboard() *tele.ReplyMarkup {

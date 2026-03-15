@@ -16,7 +16,11 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
@@ -94,14 +98,14 @@ func (b *Bot) onAddTaskPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddTaskName, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("✏️ Введи название задания")
+	return c.Send("✏️ Введи название задания", backKeyboard("parent_tasks"))
 }
 
 func (b *Bot) onAddTaskName(c tele.Context, name string) error {
 	if err := b.setState(c.Sender().ID, stateAddTaskTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("💰 Сколько токенов за это задание?")
+	return c.Send("💰 Сколько токенов за это задание?", backKeyboard("parent_tasks"))
 }
 
 func (b *Bot) onAddTaskTokens(c tele.Context, text, taskName string) error {
@@ -148,7 +152,11 @@ func (b *Bot) onAddTaskBulkPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddTaskBulk, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи задания списком, каждое на новой строке.\nПоследнее слово — количество токенов.\n\nПример:\nЗагрузить посудомойку 2\nВынести мусор 5\nЧитать час 12")
+	return c.Send(
+		"Введи задания списком, каждое на новой строке.\nПоследнее слово — количество токенов.\n\n<b>Пример:</b>\nЗагрузить посудомойку 2\nВынести мусор 5\nЧитать час 12",
+		tele.ModeHTML,
+		backKeyboard("parent_tasks"),
+	)
 }
 
 func (b *Bot) onAddTaskBulk(c tele.Context, text string) error {
@@ -279,7 +287,10 @@ func (b *Bot) onEditTaskPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateEditTaskTokens, taskName); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("📋 Задание: %s\n💰 Сколько токенов за это задание?", taskName))
+	return c.Send(
+		fmt.Sprintf("📋 Задание: %s\n\n💰 Сколько токенов за это задание?", taskName),
+		backKeyboard("parent_tasks"),
+	)
 }
 
 func (b *Bot) onEditTaskTokens(c tele.Context, text, taskName string) error {
@@ -390,14 +401,14 @@ func (b *Bot) onAddRewardPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddRewardName, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("✏️ Введи название награды")
+	return c.Send("✏️ Введи название награды", backKeyboard("parent_rewards"))
 }
 
 func (b *Bot) onAddRewardName(c tele.Context, name string) error {
 	if err := b.setState(c.Sender().ID, stateAddRewardTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("💰 Сколько токенов стоит награда?")
+	return c.Send("💰 Сколько токенов стоит награда?", backKeyboard("parent_rewards"))
 }
 
 func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
@@ -444,7 +455,11 @@ func (b *Bot) onAddRewardBulkPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddRewardBulk, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи награды списком, каждая на новой строке.\nПоследнее слово — количество токенов.\n\nПример:\nСмотреть YouTube 15м 5\nИграть в Роблокс 60м 16")
+	return c.Send(
+		"Введи награды списком, каждая на новой строке.\nПоследнее слово — количество токенов.\n\n<b>Пример:</b>\nСмотреть YouTube 15м 5\nИграть в Роблокс 60м 16",
+		tele.ModeHTML,
+		backKeyboard("parent_rewards"),
+	)
 }
 
 func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
@@ -575,7 +590,10 @@ func (b *Bot) onEditRewardPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateEditRewardTokens, rewardName); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("🎁 Награда: %s\n💰 Сколько токенов стоит награда?", rewardName))
+	return c.Send(
+		fmt.Sprintf("🎁 Награда: %s\n\n💰 Сколько токенов стоит награда?", rewardName),
+		backKeyboard("parent_rewards"),
+	)
 }
 
 func (b *Bot) onEditRewardTokens(c tele.Context, text, rewardName string) error {
@@ -686,14 +704,14 @@ func (b *Bot) onAddPenaltyPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddPenaltyName, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("✏️ Введи название штрафа")
+	return c.Send("✏️ Введи название штрафа", backKeyboard("parent_penalties"))
 }
 
 func (b *Bot) onAddPenaltyName(c tele.Context, name string) error {
 	if err := b.setState(c.Sender().ID, stateAddPenaltyTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("💰 Сколько токенов снимать за этот штраф?")
+	return c.Send("💰 Сколько токенов снимать за этот штраф?", backKeyboard("parent_penalties"))
 }
 
 func (b *Bot) onAddPenaltyTokens(c tele.Context, text, penaltyName string) error {
@@ -725,6 +743,9 @@ func (b *Bot) onAddPenaltyTokens(c tele.Context, text, penaltyName string) error
 	if err := c.Send("✅ Штраф добавлен!"); err != nil {
 		return err
 	}
+
+	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("⚠️ Новый штраф: %s (%d 💎)", penaltyName, tokens))
+
 	return b.showPenalties(c)
 }
 
@@ -734,7 +755,11 @@ func (b *Bot) onAddPenaltyBulkPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddPenaltyBulk, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи штрафы списком, каждый на новой строке.\nПоследнее слово — количество токенов.\n\nПример:\nНе убрал комнату 5\nГрубость 10")
+	return c.Send(
+		"Введи штрафы списком, каждый на новой строке.\nПоследнее слово — количество токенов.\n\n<b>Пример:</b>\nНе убрал комнату 5\nГрубость 10",
+		tele.ModeHTML,
+		backKeyboard("parent_penalties"),
+	)
 }
 
 func (b *Bot) onAddPenaltyBulk(c tele.Context, text string) error {
@@ -810,6 +835,11 @@ func (b *Bot) onAddPenaltyBulk(c tele.Context, text string) error {
 	if err := c.Send(sb.String()); err != nil {
 		return err
 	}
+
+	if len(added) > 0 {
+		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("⚠️ Добавлено %d новых штрафов", len(added)))
+	}
+
 	return b.showPenalties(c)
 }
 
@@ -860,7 +890,10 @@ func (b *Bot) onEditPenaltyPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateEditPenaltyTokens, penaltyName); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("⚠️ Штраф: %s\n💰 Сколько токенов снимать?", penaltyName))
+	return c.Send(
+		fmt.Sprintf("⚠️ Штраф: %s\n\n💰 Сколько токенов снимать?", penaltyName),
+		backKeyboard("parent_penalties"),
+	)
 }
 
 func (b *Bot) onEditPenaltyTokens(c tele.Context, text, penaltyName string) error {
@@ -986,13 +1019,20 @@ func (b *Bot) onApplyPenaltyPick(c tele.Context, num int) error {
 	penaltyName := penalties[num-1].Name
 
 	// Get children to select who to penalize
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
 
 	if len(children) == 0 {
-		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_penalties"))))
+		return c.Send(
+			"Нет детей в семье",
+			inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_penalties"))),
+		)
 	}
 
 	// If only one child, apply directly
@@ -1034,7 +1074,11 @@ func (b *Bot) onApplyPenaltyChildPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
@@ -1046,8 +1090,19 @@ func (b *Bot) onApplyPenaltyChildPick(c tele.Context, num int) error {
 	return b.applyPenalty(c, auth, penaltyName, children[num-1])
 }
 
-func (b *Bot) applyPenalty(c tele.Context, auth *domain.AuthContext, penaltyName string, child models.Users) error {
-	penalty, err := b.services.PenaltyService.ApplyPenalty(bgCtx(), auth, auth.FamilyUID, penaltyName, child.UserID)
+func (b *Bot) applyPenalty(
+	c tele.Context,
+	auth *domain.AuthContext,
+	penaltyName string,
+	child models.Users,
+) error {
+	penalty, err := b.services.PenaltyService.ApplyPenalty(
+		bgCtx(),
+		auth,
+		auth.FamilyUID,
+		penaltyName,
+		child.UserID,
+	)
 	if err != nil {
 		if errors.Is(err, domain.ErrInsufficientTokens) {
 			return c.Send(fmt.Sprintf("У %s недостаточно 💎 для штрафа", child.Name))
@@ -1061,7 +1116,7 @@ func (b *Bot) applyPenalty(c tele.Context, auth *domain.AuthContext, penaltyName
 
 	// Notify child
 	b.notifyChild(child.UserID,
-		fmt.Sprintf("⚠️ Штраф: %s (-%d 💎)", penalty.Name, penalty.Tokens))
+		fmt.Sprintf("⚠️ Штраф: -%d 💎\n\nПричина: %s", penalty.Tokens, penalty.Name))
 
 	return b.showParentMenu(c)
 }
@@ -1074,7 +1129,11 @@ func (b *Bot) showParentHistoryPrompt(c tele.Context) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
@@ -1106,7 +1165,11 @@ func (b *Bot) onHistoryChildPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
@@ -1118,7 +1181,11 @@ func (b *Bot) onHistoryChildPick(c tele.Context, num int) error {
 	return b.showHistoryForChild(c, auth, children[num-1])
 }
 
-func (b *Bot) showHistoryForChild(c tele.Context, auth *domain.AuthContext, child models.Users) error {
+func (b *Bot) showHistoryForChild(
+	c tele.Context,
+	auth *domain.AuthContext,
+	child models.Users,
+) error {
 	history, err := b.services.TokenService.GetTokenHistory(bgCtx(), auth, child.UserID)
 	if err != nil {
 		return b.internalError(c, "Error getting history", err)
@@ -1186,7 +1253,11 @@ func (b *Bot) onFamilyInviteCreate(c tele.Context, role string) error {
 		roleName = "ребёнка"
 	}
 
-	msg := fmt.Sprintf("🔑 Код приглашения для %s:\n\n`%s`\n\nКод одноразовый", roleName, invite.Code)
+	msg := fmt.Sprintf(
+		"🔑 Код приглашения для %s:\n\n`%s`\n\nКод одноразовый",
+		roleName,
+		invite.Code,
+	)
 	if err := c.Send(msg, tele.ModeMarkdownV2); err != nil {
 		return err
 	}
@@ -1238,7 +1309,10 @@ func (b *Bot) onRenameMemberPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateRenameMemberName, targetUserID); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("✏️ Текущее имя: %s\nВведи новое имя:", users[num-1].Name))
+	return c.Send(
+		fmt.Sprintf("✏️ Текущее имя: %s\nВведи новое имя:", users[num-1].Name),
+		backKeyboard("parent_family"),
+	)
 }
 
 func (b *Bot) onRenameMemberName(c tele.Context, newName, targetUserID string) error {
@@ -1282,7 +1356,10 @@ func (b *Bot) onDeleteMemberPrompt(c tele.Context) error {
 	}
 
 	if len(others) == 0 {
-		return c.Send("Нет участников для удаления", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_family"))))
+		return c.Send(
+			"Нет участников для удаления",
+			inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_family"))),
+		)
 	}
 
 	items := make([]string, len(others))
@@ -1340,7 +1417,11 @@ func (b *Bot) onManualAdjustPrompt(c tele.Context) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
@@ -1372,7 +1453,11 @@ func (b *Bot) onManualAdjustChildPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	children, err := b.services.UserService.FindFamilyUsersByRole(
+		bgCtx(),
+		auth.FamilyUID,
+		string(domain.RoleChild),
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting children", err)
 	}
@@ -1388,7 +1473,7 @@ func (b *Bot) startManualAdjust(c tele.Context, childUserID string) error {
 	if err := b.setState(c.Sender().ID, stateManualAdjustReason, childUserID); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("✏️ Введи причину коррекции")
+	return c.Send("✏️ Введи причину коррекции", backKeyboard("back_parent"))
 }
 
 func (b *Bot) onManualAdjustReason(c tele.Context, reason, childUserID string) error {
@@ -1397,7 +1482,10 @@ func (b *Bot) onManualAdjustReason(c tele.Context, reason, childUserID string) e
 	if err := b.setState(c.Sender().ID, stateManualAdjustTokens, ctx); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("💰 Сколько токенов? (положительное — добавить, отрицательное — снять)")
+	return c.Send(
+		"💰 Сколько токенов? (положительное — добавить, отрицательное — снять)",
+		backKeyboard("back_parent"),
+	)
 }
 
 func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error {
@@ -1424,7 +1512,7 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 
 	err = b.services.TokenService.AddTokensToUser(
 		bgCtx(), auth, childUserID, tokens,
-		domain.TokenTypeManualAdjustment, reason, nil, nil,
+		domain.TokenTypeManualAdjustment, "Коррекция: "+reason, nil, nil,
 	)
 	if err != nil {
 		if errors.Is(err, domain.ErrInsufficientTokens) {
@@ -1445,13 +1533,13 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 	if tokens < 0 {
 		sign = ""
 	}
-	if err := c.Send(fmt.Sprintf("✅ Коррекция: %s%d 💎 для %s\nПричина: %s", sign, tokens, childName, reason)); err != nil {
+	if err := c.Send(fmt.Sprintf("✅ Коррекция: %s%d 💎 для %s\n\nПричина: %s", sign, tokens, childName, reason)); err != nil {
 		return err
 	}
 
 	// Notify child
 	b.notifyChild(childUserID,
-		fmt.Sprintf("🔧 Коррекция: %s%d 💎\nПричина: %s", sign, tokens, reason))
+		fmt.Sprintf("🔧 Коррекция: %s%d 💎\n\nПричина: %s", sign, tokens, reason))
 
 	return b.showParentMenu(c)
 }
@@ -1477,7 +1565,10 @@ func (b *Bot) showPendingReview(c tele.Context) error {
 	}
 
 	if len(pending) == 0 {
-		return c.Send("Нет заданий для проверки", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
+		return c.Send(
+			"Нет заданий для проверки",
+			inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))),
+		)
 	}
 
 	items := make([]string, len(pending))
@@ -1578,7 +1669,7 @@ func (b *Bot) onReviewApprove(c tele.Context) error {
 	// Notify the child
 	if assignedChildID != "" {
 		b.notifyChild(assignedChildID,
-			fmt.Sprintf("✅ Задание \"%s\" подтверждено! Ты получил %d 💎", task.Name, task.Tokens))
+			fmt.Sprintf("✅ Задание \"%s\" подтверждено!\nТы получил %d 💎", task.Name, task.Tokens))
 	}
 
 	return b.showParentMenu(c)
@@ -1620,7 +1711,7 @@ func (b *Bot) onReviewReject(c tele.Context) error {
 	// Notify the child
 	if assignedChildID != "" {
 		b.notifyChild(assignedChildID,
-			fmt.Sprintf("❌ Задание \"%s\" отклонено. Попробуй еще раз!", task.Name))
+			fmt.Sprintf("❌ Задание \"%s\" отклонено.\n\nПопробуй еще раз!", task.Name))
 	}
 
 	return b.showParentMenu(c)
