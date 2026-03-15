@@ -171,6 +171,38 @@ func (s *TaskService) CompleteTask(
 	return &task, nil
 }
 
+// RejectTask resets a task from "check" back to "new", clearing the assignee.
+// Used when a parent rejects a child's completed task.
+func (s *TaskService) RejectTask(
+	ctx context.Context,
+	authCtx *AuthContext,
+	familyUID, taskName string,
+) (*models.Tasks, error) {
+	if err := s.auth.RequirePermission(authCtx, "tasks", "complete", familyUID); err != nil {
+		return nil, err
+	}
+
+	var task models.Tasks
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ? AND name = ?", familyUID, taskName).
+		First(&task).Error
+	if err != nil {
+		return nil, err
+	}
+
+	if task.Status != TaskStatusCheck {
+		return nil, ErrTaskInvalidForReview
+	}
+
+	task.Status = TaskStatusNew
+	task.AssignedToUserID = ""
+	if err := s.db.WithContext(ctx).Select("status", "assigned_to_user_id").Save(&task).Error; err != nil {
+		return nil, err
+	}
+
+	return &task, nil
+}
+
 // DeleteTask deletes a task with business rule enforcement
 func (s *TaskService) DeleteTask(
 	ctx context.Context,
