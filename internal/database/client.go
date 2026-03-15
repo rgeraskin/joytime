@@ -68,6 +68,24 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
+	// Drop old non-partial unique indexes that block re-use of names after soft-delete,
+	// then create partial unique indexes that exclude soft-deleted rows.
+	// GORM's uniqueIndex tag creates regular indexes that block re-creation
+	// of entities with the same name after soft-delete.
+	for _, table := range []string{"tasks", "rewards"} {
+		// Drop the old GORM-generated unique index (non-partial)
+		db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS idx_name`))
+
+		idx := fmt.Sprintf("idx_%s_family_name_active", table)
+		sql := fmt.Sprintf(
+			`CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (family_uid, name) WHERE deleted_at IS NULL`,
+			idx, table,
+		)
+		if err := db.Exec(sql).Error; err != nil {
+			return nil, fmt.Errorf("failed to create partial unique index on %s: %w", table, err)
+		}
+	}
+
 	if fillOnly {
 		logger.Info("Filling database...")
 		err = Fill(db)
