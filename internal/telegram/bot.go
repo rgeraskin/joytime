@@ -22,6 +22,7 @@ const (
 	stateAddTaskBulk      = "add_task_bulk"
 	stateAddTaskTokens    = "add_task_tokens"
 	stateEditTaskTokens   = "edit_task_tokens"
+	stateAddRewardBulk    = "add_reward_bulk"
 	stateAddRewardName    = "add_reward_name"
 	stateAddRewardTokens  = "add_reward_tokens"
 	stateEditRewardTokens = "edit_reward_tokens"
@@ -171,6 +172,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	// Reward CRUD
 	case "reward_add":
 		return b.onAddRewardPrompt(c)
+	case "reward_add_bulk":
+		return b.onAddRewardBulkPrompt(c)
 	case "reward_edit":
 		return b.onEditRewardPrompt(c)
 	case "reward_delete":
@@ -219,6 +222,8 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.onEditTaskTokens(c, text, inputCtx)
 
 	// Reward management (parent)
+	case stateAddRewardBulk:
+		return b.onAddRewardBulk(c, text)
 	case stateAddRewardName:
 		return b.onAddRewardName(c, text)
 	case stateAddRewardTokens:

@@ -372,8 +372,9 @@ func (b *Bot) showRewards(c tele.Context) error {
 
 	msg := formatList("Награды", items)
 	kb := inlineKeyboard(
-		btnRow(btn("Добавить", "reward_add"), btn("Удалить", "reward_delete")),
-		btnRow(btn("Изменить цену", "reward_edit"), btn("Назад", "back_parent")),
+		btnRow(btn("Добавить", "reward_add"), btn("Добавить списком", "reward_add_bulk")),
+		btnRow(btn("Удалить", "reward_delete"), btn("Изменить цену", "reward_edit")),
+		btnRow(btn("Назад", "back_parent")),
 	)
 	return c.Send(msg, kb)
 }
@@ -422,6 +423,91 @@ func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 
 	b.clearState(c.Sender().ID)
 	if err := c.Send("Награда добавлена!"); err != nil {
+		return err
+	}
+	return b.showRewards(c)
+}
+
+// --- Reward bulk add ---
+
+func (b *Bot) onAddRewardBulkPrompt(c tele.Context) error {
+	if err := b.setState(c.Sender().ID, stateAddRewardBulk, ""); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+	return c.Send("Введи награды списком, каждая на новой строке.\nПоследнее слово — количество токенов.\n\nПример:\nСмотреть YouTube 15м 5\nИграть в Роблокс 60м 16")
+}
+
+func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	lines := strings.Split(text, "\n")
+	var added []string
+	var errs []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		lastSpace := strings.LastIndex(line, " ")
+		if lastSpace < 0 {
+			errs = append(errs, fmt.Sprintf("'%s' — нет токенов", line))
+			continue
+		}
+
+		name := strings.TrimSpace(line[:lastSpace])
+		tokensStr := strings.TrimSpace(line[lastSpace+1:])
+		tokens, err := parseNumber(tokensStr)
+		if err != nil || name == "" {
+			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
+			continue
+		}
+
+		reward := &models.Rewards{
+			Entities: models.Entities{
+				FamilyUID: auth.FamilyUID,
+				Name:      name,
+				Tokens:    tokens,
+			},
+		}
+		if err := b.services.RewardService.CreateReward(bgCtx(), auth, reward); err != nil {
+			if isDuplicateKey(err) {
+				errs = append(errs, fmt.Sprintf("'%s' — уже существует", name))
+			} else {
+				errs = append(errs, fmt.Sprintf("'%s' — ошибка", name))
+			}
+			continue
+		}
+		added = append(added, fmt.Sprintf("%s: %d 💎", name, tokens))
+	}
+
+	b.clearState(c.Sender().ID)
+
+	var sb strings.Builder
+	if len(added) > 0 {
+		sb.WriteString(fmt.Sprintf("Добавлено %d:\n", len(added)))
+		for _, a := range added {
+			sb.WriteString("  + " + a + "\n")
+		}
+	}
+	if len(errs) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Ошибки:\n")
+		for _, e := range errs {
+			sb.WriteString("  - " + e + "\n")
+		}
+	}
+	if len(added) == 0 && len(errs) == 0 {
+		sb.WriteString("Не найдено наград для добавления")
+	}
+
+	if err := c.Send(sb.String()); err != nil {
 		return err
 	}
 	return b.showRewards(c)
