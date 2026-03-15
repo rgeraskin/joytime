@@ -33,13 +33,15 @@ Running a single test: `go test ./internal/handlers/ -run TestName -v` (requires
 Three-layer architecture under `internal/`:
 
 - **handlers/** — HTTP layer. `APIHandler` struct owns all endpoints. Routes registered in `http.go`, grouped by resource in `handler_*.go` files. Uses stdlib `net/http` (no framework). Authentication via `X-User-ID` header in middleware.
-- **domain/** — Business logic. Service structs (`TaskService`, `RewardService`, `PenaltyService`, `TokenService`, `UserService`, `FamilyService`) orchestrated through `Services`. Every service method receives `AuthContext` (userID, role, familyUID) for authorization. Casbin enforces RBAC+ABAC (role permissions scoped to family).
+- **domain/** — Business logic. Service structs (`TaskService`, `RewardService`, `PenaltyService`, `TokenService`, `UserService`, `FamilyService`, `InviteService`) orchestrated through `Services`. Every service method receives `AuthContext` (userID, role, familyUID) for authorization. Casbin enforces RBAC+ABAC (role permissions scoped to family).
 - **telegram/** — Telegram bot layer. Uses `gopkg.in/telebot.v4`. `Bot` struct wraps telebot with domain `Services`. State management via `InputState`/`InputContext` fields on `Users` model. Number selection uses inline keyboard grids (7 columns).
 - **database/** — GORM connection setup (SQLite default, PostgreSQL optional). **models/** — GORM schema definitions.
 
 Request flow (HTTP): HTTP → validation → auth middleware (builds AuthContext) → handler → domain service (Casbin check + business rules) → GORM → DB.
 
 Request flow (Telegram): Update → handleCallback/handleText → domain service (Casbin check + business rules) → GORM → DB → response with inline keyboard.
+
+Registration flow: `/start` → "Create family" (creates parent + family) or "Enter invite code" (deep link `t.me/bot?start=CODE` or manual entry). Invite codes are one-time, carry role (parent/child) and familyUID. Family codes replaced by invite links.
 
 ## Key Conventions
 
@@ -52,6 +54,9 @@ Request flow (Telegram): Update → handleCallback/handleText → domain service
 - Tests use real PostgreSQL (docker-compose), not mocks
 - Token operations maintain audit trail via `TokenHistory`
 - Tasks are repeatable — reset to `new` after parent approval
+- Entities (tasks, rewards, penalties) sorted by tokens descending
+- User deletion cascades to Tokens and TokenHistory (clean re-add)
+- Soft-deleted users are restored (not duplicated) on re-registration
 - Partial unique indexes (WHERE deleted_at IS NULL) instead of GORM uniqueIndex tags, managed manually in `database/client.go` post-migration
 
 ## Environment

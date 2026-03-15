@@ -13,7 +13,7 @@ JoyTime uses a three-layer architecture where business rules and authorization a
 
 ### 2. Domain/Business Logic Layer (`internal/domain/`)
 - **Responsibility**: Business rules, role-based access control, family isolation
-- **Key files**: `service_task.go`, `service_reward.go`, `service_token.go`, `service_user.go`, `service_family.go`, `casbin_auth.go`
+- **Key files**: `service_task.go`, `service_reward.go`, `service_penalty.go`, `service_token.go`, `service_user.go`, `service_family.go`, `service_invite.go`, `casbin_auth.go`
 - **What it does**:
   - Validates user permissions based on roles (parent/child) via Casbin
   - Enforces family boundaries (users can only access their family's data)
@@ -55,18 +55,22 @@ Every domain service method receives `AuthContext` as its first argument after `
 ## Business Rules
 
 ### Parent Permissions
-- Create, read, update, delete tasks and rewards
+- Create, read, update, delete tasks, rewards, and penalties
+- Apply penalties to children (deducts tokens)
 - Manually adjust tokens for family members
 - View all family member activities and token histories
 - Approve child task completions (status → "completed")
+- Create one-time invite codes (with role: parent/child)
+- Manage family members (rename, delete)
 
 ### Child Permissions
-- Read tasks and rewards in their family
+- Read tasks, rewards, and penalties in their family
 - Complete tasks (status → "check" for parent approval)
 - Read their own token balance and history
 - Claim rewards (if they have enough tokens)
 - Cannot create/delete tasks, cannot create/update/delete rewards
 - Cannot give tokens to themselves or view others' tokens
+- Cannot create invites or manage family members
 
 ### Family Isolation
 - Users can only interact with data from their own family
@@ -80,12 +84,14 @@ Aggregates all services and initializes Casbin:
 
 ```go
 type Services struct {
-    TaskService   *TaskService
-    TokenService  *TokenService
-    UserService   *UserService
-    FamilyService *FamilyService
-    RewardService *RewardService
-    Auth          *CasbinAuthService
+    TaskService    *TaskService
+    TokenService   *TokenService
+    UserService    *UserService
+    FamilyService  *FamilyService
+    RewardService  *RewardService
+    PenaltyService *PenaltyService
+    InviteService  *InviteService
+    Auth           *CasbinAuthService
 }
 ```
 

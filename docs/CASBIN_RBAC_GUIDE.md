@@ -54,6 +54,12 @@ Key: the matcher includes `r.familyCtx == r.resourceFamily` — this is the ABAC
 | rewards  | update        | +      | -     | Only parents can modify rewards         |
 | rewards  | delete        | +      | -     | Only parents can delete rewards         |
 | rewards  | claim         | -      | +     | Only children can claim rewards         |
+| penalties| create        | +      | -     | Only parents can create penalties       |
+| penalties| read          | +      | +     | All can view family penalties           |
+| penalties| update        | +      | -     | Only parents can modify penalties       |
+| penalties| delete        | +      | -     | Only parents can delete penalties       |
+| penalties| apply         | +      | -     | Only parents can apply penalties        |
+| invites  | create        | +      | -     | Only parents can create invite codes    |
 | tokens   | read          | +      | +     | Own tokens only for children            |
 | tokens   | read_others   | +      | -     | Parents can see all family tokens       |
 | tokens   | add           | +      | -     | Only parents can give tokens            |
