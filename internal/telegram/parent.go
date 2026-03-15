@@ -137,6 +137,9 @@ func (b *Bot) onAddTaskTokens(c tele.Context, text, taskName string) error {
 	if err := c.Send("Задание добавлено!"); err != nil {
 		return err
 	}
+
+	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Новое задание: %s (%d 💎)", taskName, tokens))
+
 	return b.showTasks(c)
 }
 
@@ -222,6 +225,11 @@ func (b *Bot) onAddTaskBulk(c tele.Context, text string) error {
 	if err := c.Send(sb.String()); err != nil {
 		return err
 	}
+
+	if len(added) > 0 {
+		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Добавлено %d новых заданий", len(added)))
+	}
+
 	return b.showTasks(c)
 }
 
@@ -425,6 +433,9 @@ func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 	if err := c.Send("Награда добавлена!"); err != nil {
 		return err
 	}
+
+	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Новая награда: %s (%d 💎)", rewardName, tokens))
+
 	return b.showRewards(c)
 }
 
@@ -510,6 +521,11 @@ func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
 	if err := c.Send(sb.String()); err != nil {
 		return err
 	}
+
+	if len(added) > 0 {
+		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Добавлено %d новых наград", len(added)))
+	}
+
 	return b.showRewards(c)
 }
 

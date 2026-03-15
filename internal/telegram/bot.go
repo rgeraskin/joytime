@@ -379,6 +379,17 @@ func (b *Bot) notifyParents(familyUID string, excludeTgID int64, message string)
 	}
 }
 
+func (b *Bot) notifyChildren(familyUID string, message string) {
+	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), familyUID, string(domain.RoleChild))
+	if err != nil {
+		b.logger.Error("Failed to find children for notification", "error", err)
+		return
+	}
+	for _, child := range children {
+		b.notifyChild(child.UserID, message)
+	}
+}
+
 func (b *Bot) notifyChild(childUserID, message string) {
 	tgIDStr := strings.TrimPrefix(childUserID, "user_")
 	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
