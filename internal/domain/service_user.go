@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -167,9 +168,27 @@ func (s *UserService) FindUser(ctx context.Context, userID string) (*models.User
 	return &user, err
 }
 
-// CreateUser creates a new user without authorization checks.
+// CreateUser creates a new user or restores a soft-deleted one.
 // Used during Telegram registration when no auth context exists yet.
 func (s *UserService) CreateUser(ctx context.Context, user *models.Users) error {
+	// Check for soft-deleted user with same ID
+	var existing models.Users
+	err := s.db.WithContext(ctx).Unscoped().Where("user_id = ?", user.UserID).First(&existing).Error
+	if err == nil && existing.DeletedAt.Valid {
+		// Restore soft-deleted user with new data
+		return s.db.WithContext(ctx).Unscoped().Model(&existing).Updates(map[string]any{
+			"deleted_at":  nil,
+			"name":        user.Name,
+			"role":        user.Role,
+			"family_uid":  user.FamilyUID,
+			"platform":    user.Platform,
+			"input_state": "",
+			"input_context": "",
+		}).Error
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	return s.db.WithContext(ctx).Create(user).Error
 }
 
@@ -192,6 +211,18 @@ func (s *UserService) UpdateFamilyUID(ctx context.Context, userID, familyUID str
 		Model(&models.Users{}).
 		Where("user_id = ?", userID).
 		Update("family_uid", familyUID).Error
+}
+
+// SetRoleAndFamily updates a user's role and family UID atomically.
+// Used during invite-based registration when a user joins a family.
+func (s *UserService) SetRoleAndFamily(ctx context.Context, userID, role, familyUID string) error {
+	return s.db.WithContext(ctx).
+		Model(&models.Users{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]any{
+			"role":       role,
+			"family_uid": familyUID,
+		}).Error
 }
 
 // FindFamilyUsersByRole retrieves users in a family filtered by role.
