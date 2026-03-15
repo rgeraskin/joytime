@@ -51,6 +51,7 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 	rows := [][]tele.InlineButton{
 		btnRow(btn("📋 Задания", "parent_tasks"), btn("🎁 Награды", "parent_rewards")),
 		btnRow(btn("⚠️ Штрафы", "parent_penalties"), btn("🔧 Коррекция", "manual_adjust")),
+		btnRow(btn("👨‍👩‍👧‍👦 Семья", "parent_family")),
 	}
 	if pendingCount > 0 {
 		rows = append(
@@ -1065,6 +1066,175 @@ func (b *Bot) applyPenalty(c tele.Context, auth *domain.AuthContext, penaltyName
 		fmt.Sprintf("⚠️ Штраф: %s (-%d 💎)", penalty.Name, penalty.Tokens))
 
 	return b.showParentMenu(c)
+}
+
+// --- Family management ---
+
+func (b *Bot) showFamilyMembers(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	users, err := b.services.UserService.GetFamilyUsers(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting family users", err)
+	}
+
+	items := make([]string, len(users))
+	for i, u := range users {
+		roleName := "родитель"
+		if u.Role == string(domain.RoleChild) {
+			roleName = "ребёнок"
+		}
+		items[i] = fmt.Sprintf("%s (%s)", u.Name, roleName)
+	}
+
+	msg := formatList("👨‍👩‍👧‍👦 Семья", items)
+	kb := inlineKeyboard(
+		btnRow(btn("✏️ Переименовать", "family_rename"), btn("🗑 Удалить", "family_delete")),
+		btnRow(btn("⬅️ Назад", "back_parent")),
+	)
+	return c.Send(msg, kb)
+}
+
+func (b *Bot) onRenameMemberPrompt(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	users, err := b.services.UserService.GetFamilyUsers(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting family users", err)
+	}
+
+	if len(users) == 0 {
+		return c.Send("Нет участников", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_family"))))
+	}
+
+	items := make([]string, len(users))
+	for i, u := range users {
+		items[i] = u.Name
+	}
+
+	msg := formatList("Кого переименовать", items)
+	grid := numberGrid(len(users), "pick_rename_member")
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_family")))
+	return c.Send(msg, inlineKeyboard(grid...))
+}
+
+func (b *Bot) onRenameMemberPick(c tele.Context, num int) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	users, err := b.services.UserService.GetFamilyUsers(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting family users", err)
+	}
+
+	if num < 1 || num > len(users) {
+		return c.Send("❌ Неверный номер")
+	}
+
+	targetUserID := users[num-1].UserID
+	if err := b.setState(c.Sender().ID, stateRenameMemberName, targetUserID); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+	return c.Send(fmt.Sprintf("✏️ Текущее имя: %s\nВведи новое имя:", users[num-1].Name))
+}
+
+func (b *Bot) onRenameMemberName(c tele.Context, newName, targetUserID string) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	updates := &domain.UpdateUserRequest{Name: newName}
+	if _, err := b.services.UserService.UpdateUser(bgCtx(), auth, targetUserID, updates); err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			return c.Send("❌ " + err.Error())
+		}
+		return b.internalError(c, "Error updating user", err)
+	}
+
+	b.clearState(c.Sender().ID)
+	if err := c.Send("✅ Имя изменено!"); err != nil {
+		return err
+	}
+	return b.showFamilyMembers(c)
+}
+
+func (b *Bot) onDeleteMemberPrompt(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	users, err := b.services.UserService.GetFamilyUsers(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting family users", err)
+	}
+
+	// Exclude self from deletion list
+	var others []models.Users
+	for _, u := range users {
+		if u.UserID != auth.UserID {
+			others = append(others, u)
+		}
+	}
+
+	if len(others) == 0 {
+		return c.Send("Нет участников для удаления", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_family"))))
+	}
+
+	items := make([]string, len(others))
+	for i, u := range others {
+		items[i] = u.Name
+	}
+
+	msg := formatList("Кого удалить", items)
+	grid := numberGrid(len(others), "pick_delete_member")
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_family")))
+	return c.Send(msg, inlineKeyboard(grid...))
+}
+
+func (b *Bot) onDeleteMemberPick(c tele.Context, num int) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	users, err := b.services.UserService.GetFamilyUsers(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting family users", err)
+	}
+
+	var others []models.Users
+	for _, u := range users {
+		if u.UserID != auth.UserID {
+			others = append(others, u)
+		}
+	}
+
+	if num < 1 || num > len(others) {
+		return c.Send("❌ Неверный номер")
+	}
+
+	targetUser := others[num-1]
+	if err := b.services.UserService.DeleteUser(bgCtx(), auth, targetUser.UserID); err != nil {
+		if errors.Is(err, domain.ErrCannotDeleteSelf) {
+			return c.Send("❌ Нельзя удалить себя")
+		}
+		return b.internalError(c, "Error deleting user", err)
+	}
+
+	if err := c.Send(fmt.Sprintf("✅ %s удалён", targetUser.Name)); err != nil {
+		return err
+	}
+	return b.showFamilyMembers(c)
 }
 
 // --- Manual token adjustment ---

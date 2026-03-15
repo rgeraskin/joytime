@@ -34,6 +34,7 @@ const (
 	stateApplyPenaltyChild  = "apply_penalty_child"
 	stateManualAdjustReason = "manual_adjust_reason"
 	stateManualAdjustTokens = "manual_adjust_tokens"
+	stateRenameMemberName   = "rename_member_name"
 )
 
 // Number grid settings
@@ -165,6 +166,10 @@ func (b *Bot) handleCallback(c tele.Context) error {
 			return b.onApplyPenaltyPick(c, num)
 		case "pick_manual_child":
 			return b.onManualAdjustChildPick(c, num)
+		case "pick_rename_member":
+			return b.onRenameMemberPick(c, num)
+		case "pick_delete_member":
+			return b.onDeleteMemberPick(c, num)
 		}
 	}
 
@@ -227,6 +232,12 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return b.onApplyPenaltyPrompt(c)
 	case "manual_adjust":
 		return b.onManualAdjustPrompt(c)
+	case "parent_family":
+		return b.showFamilyMembers(c)
+	case "family_rename":
+		return b.onRenameMemberPrompt(c)
+	case "family_delete":
+		return b.onDeleteMemberPrompt(c)
 
 	// Child actions
 	case "child_penalties":
@@ -291,6 +302,10 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.onAddPenaltyBulk(c, text)
 	case stateEditPenaltyTokens:
 		return b.onEditPenaltyTokens(c, text, inputCtx)
+
+	// Family management
+	case stateRenameMemberName:
+		return b.onRenameMemberName(c, text, inputCtx)
 
 	// Manual adjustment
 	case stateManualAdjustReason:

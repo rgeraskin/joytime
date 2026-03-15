@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -271,6 +272,66 @@ func TestRewardClaimHTTP(t *testing.T) {
 
 		testHandler.handleRewardsByFamily(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+func TestFamilyMemberManagement(t *testing.T) {
+	setupTestDB(t)
+	family, parent, child, _ := setupServiceTestData(t)
+
+	parentCtx := &domain.AuthContext{
+		UserID:    parent.UserID,
+		UserRole:  domain.RoleParent,
+		FamilyUID: family.UID,
+	}
+	childCtx := &domain.AuthContext{
+		UserID:    child.UserID,
+		UserRole:  domain.RoleChild,
+		FamilyUID: family.UID,
+	}
+
+	t.Run("Parent can rename child", func(t *testing.T) {
+		updates := &domain.UpdateUserRequest{Name: "New Name"}
+		updated, err := testHandler.services.UserService.UpdateUser(context.Background(), parentCtx, child.UserID, updates)
+		require.NoError(t, err)
+		assert.Equal(t, "New Name", updated.Name)
+	})
+
+	t.Run("Parent cannot delete self", func(t *testing.T) {
+		err := testHandler.services.UserService.DeleteUser(context.Background(), parentCtx, parent.UserID)
+		assert.ErrorIs(t, err, domain.ErrCannotDeleteSelf)
+	})
+
+	t.Run("Parent can delete child", func(t *testing.T) {
+		// Create a second child to delete
+		secondChild := &models.Users{
+			UserID:    fmt.Sprintf("child2_%s_%d", t.Name(), time.Now().UnixNano()),
+			Name:      "Second Child",
+			Role:      "child",
+			FamilyUID: family.UID,
+			Platform:  "telegram",
+		}
+		require.NoError(t, testDB.Create(secondChild).Error)
+
+		err := testHandler.services.UserService.DeleteUser(context.Background(), parentCtx, secondChild.UserID)
+		assert.NoError(t, err)
+
+		// Verify user no longer found
+		_, err = testHandler.services.UserService.FindUser(context.Background(), secondChild.UserID)
+		assert.Error(t, err)
+	})
+
+	t.Run("Child cannot delete other users", func(t *testing.T) {
+		err := testHandler.services.UserService.DeleteUser(context.Background(), childCtx, parent.UserID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthorized")
+	})
+
+	t.Run("Child cannot rename other users", func(t *testing.T) {
+		updates := &domain.UpdateUserRequest{Name: "Hacked"}
+		_, err := testHandler.services.UserService.UpdateUser(context.Background(), childCtx, parent.UserID, updates)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthorized")
 	})
 }
 
