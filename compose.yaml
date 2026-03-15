@@ -5,8 +5,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    # volumes:
-    #   - ./data:/app/data
+    environment:
+      # sudo chown 65532:65532 data
+      DB_PATH: /data/joytime.db
+    volumes:
+      - ./data:/data
 
 #   postgres:
 #     image: postgres:15-alpine
