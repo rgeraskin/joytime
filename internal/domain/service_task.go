@@ -140,13 +140,10 @@ func (s *TaskService) CompleteTask(
 		return nil, ErrNoAssignedChild
 	}
 
-	// Wrap status update + token award in a single transaction
+	// Wrap token award + task reset in a single transaction.
+	// Tasks are repeatable: award tokens, then reset to "new" so the task
+	// can be completed again.
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		task.Status = TaskStatusCompleted
-		if err := tx.Save(&task).Error; err != nil {
-			return err
-		}
-
 		if task.Tokens > 0 {
 			taskID := task.ID
 			if err := s.tokens.addTokensInTx(
@@ -161,7 +158,11 @@ func (s *TaskService) CompleteTask(
 				return err
 			}
 		}
-		return nil
+
+		// Reset task to "new" so it's available for the next completion
+		task.Status = TaskStatusNew
+		task.AssignedToUserID = ""
+		return tx.Select("status", "assigned_to_user_id").Save(&task).Error
 	})
 	if err != nil {
 		return nil, err

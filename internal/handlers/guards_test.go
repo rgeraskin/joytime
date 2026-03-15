@@ -48,25 +48,20 @@ func TestUpdateCompletedTaskBlocked(t *testing.T) {
 	_, err = testHandler.services.TaskService.CompleteTask(context.Background(), childCtx, family.UID, "Completed Task")
 	require.NoError(t, err)
 
-	// Parent approves
-	_, err = testHandler.services.TaskService.CompleteTask(context.Background(), parentCtx, family.UID, "Completed Task")
+	// Parent approves — task resets to "new" (repeatable chores)
+	approved, err := testHandler.services.TaskService.CompleteTask(context.Background(), parentCtx, family.UID, "Completed Task")
 	require.NoError(t, err)
 
-	t.Run("Cannot update status of completed task", func(t *testing.T) {
-		updates := &domain.UpdateTaskRequest{Status: "new"}
-		_, err := testHandler.services.TaskService.UpdateTask(
-			context.Background(), parentCtx, family.UID, "Completed Task", updates,
-		)
-		assert.ErrorIs(t, err, domain.ErrTaskAlreadyCompleted)
+	t.Run("Task resets to new after parent approval", func(t *testing.T) {
+		assert.Equal(t, domain.TaskStatusNew, approved.Status)
+		assert.Empty(t, approved.AssignedToUserID)
 	})
 
-	t.Run("Can still update non-status fields of completed task", func(t *testing.T) {
-		updates := &domain.UpdateTaskRequest{Description: "Updated description"}
-		updated, err := testHandler.services.TaskService.UpdateTask(
-			context.Background(), parentCtx, family.UID, "Completed Task", updates,
-		)
-		assert.NoError(t, err)
-		assert.Equal(t, "Updated description", updated.Description)
+	t.Run("Task can be completed again after reset", func(t *testing.T) {
+		// Child submits again
+		resubmitted, err := testHandler.services.TaskService.CompleteTask(context.Background(), childCtx, family.UID, "Completed Task")
+		require.NoError(t, err)
+		assert.Equal(t, domain.TaskStatusCheck, resubmitted.Status)
 	})
 }
 
