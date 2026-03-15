@@ -50,7 +50,7 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 
 	rows := [][]tele.InlineButton{
 		btnRow(btn("Задания", "parent_tasks"), btn("Награды", "parent_rewards")),
-		btnRow(btn("Штрафы", "parent_penalties")),
+		btnRow(btn("Штрафы", "parent_penalties"), btn("Коррекция", "manual_adjust")),
 	}
 	if pendingCount > 0 {
 		rows = append(
@@ -1047,6 +1047,130 @@ func (b *Bot) applyPenalty(c tele.Context, auth *domain.AuthContext, penaltyName
 	// Notify child
 	b.notifyChild(child.UserID,
 		fmt.Sprintf("Штраф: %s (-%d 💎)", penalty.Name, penalty.Tokens))
+
+	return b.showParentMenu(c)
+}
+
+// --- Manual token adjustment ---
+
+func (b *Bot) onManualAdjustPrompt(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	if err != nil {
+		return b.internalError(c, "Error getting children", err)
+	}
+
+	if len(children) == 0 {
+		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("Назад", "back_parent"))))
+	}
+
+	// Single child — go straight to reason prompt
+	if len(children) == 1 {
+		return b.startManualAdjust(c, children[0].UserID)
+	}
+
+	// Multiple children — show picker
+	items := make([]string, len(children))
+	for i, ch := range children {
+		items[i] = ch.Name
+	}
+
+	msg := formatList("Кому скорректировать токены", items)
+	grid := numberGrid(len(children), "pick_manual_child")
+	grid = append(grid, btnRow(btn("Назад", "back_parent")))
+	return c.Send(msg, inlineKeyboard(grid...))
+}
+
+func (b *Bot) onManualAdjustChildPick(c tele.Context, num int) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	if err != nil {
+		return b.internalError(c, "Error getting children", err)
+	}
+
+	if num < 1 || num > len(children) {
+		return c.Send("Неверный номер")
+	}
+
+	return b.startManualAdjust(c, children[num-1].UserID)
+}
+
+func (b *Bot) startManualAdjust(c tele.Context, childUserID string) error {
+	if err := b.setState(c.Sender().ID, stateManualAdjustReason, childUserID); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+	return c.Send("Введи причину коррекции")
+}
+
+func (b *Bot) onManualAdjustReason(c tele.Context, reason, childUserID string) error {
+	// Store childUserID|reason for the next step
+	ctx := childUserID + "|" + reason
+	if err := b.setState(c.Sender().ID, stateManualAdjustTokens, ctx); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+	return c.Send("Сколько токенов? (положительное — добавить, отрицательное — снять)")
+}
+
+func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error {
+	tokens, err := parseNumber(text)
+	if err != nil {
+		return c.Send("Количество токенов должно быть числом")
+	}
+	if tokens == 0 {
+		return c.Send("Количество токенов не может быть 0")
+	}
+
+	// Parse childUserID|reason from context
+	parts := strings.SplitN(inputCtx, "|", 2)
+	if len(parts) != 2 {
+		return c.Send("Ошибка. Попробуй /start")
+	}
+	childUserID := parts[0]
+	reason := parts[1]
+
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	err = b.services.TokenService.AddTokensToUser(
+		bgCtx(), auth, childUserID, tokens,
+		domain.TokenTypeManualAdjustment, reason, nil, nil,
+	)
+	if err != nil {
+		if errors.Is(err, domain.ErrInsufficientTokens) {
+			return c.Send("Недостаточно токенов для снятия")
+		}
+		return b.internalError(c, "Error adjusting tokens", err)
+	}
+
+	b.clearState(c.Sender().ID)
+
+	child, _ := b.services.UserService.FindUser(bgCtx(), childUserID)
+	childName := childUserID
+	if child != nil {
+		childName = child.Name
+	}
+
+	sign := "+"
+	if tokens < 0 {
+		sign = ""
+	}
+	if err := c.Send(fmt.Sprintf("Коррекция: %s%d 💎 для %s\nПричина: %s", sign, tokens, childName, reason)); err != nil {
+		return err
+	}
+
+	// Notify child
+	b.notifyChild(childUserID,
+		fmt.Sprintf("Коррекция: %s%d 💎\nПричина: %s", sign, tokens, reason))
 
 	return b.showParentMenu(c)
 }

@@ -31,7 +31,9 @@ const (
 	stateAddPenaltyTokens = "add_penalty_tokens"
 	stateAddPenaltyBulk   = "add_penalty_bulk"
 	stateEditPenaltyTokens = "edit_penalty_tokens"
-	stateApplyPenaltyChild = "apply_penalty_child"
+	stateApplyPenaltyChild  = "apply_penalty_child"
+	stateManualAdjustReason = "manual_adjust_reason"
+	stateManualAdjustTokens = "manual_adjust_tokens"
 )
 
 // Number grid settings
@@ -161,6 +163,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 			return b.onDeletePenaltyPick(c, num)
 		case "pick_apply_penalty":
 			return b.onApplyPenaltyPick(c, num)
+		case "pick_manual_child":
+			return b.onManualAdjustChildPick(c, num)
 		}
 	}
 
@@ -221,6 +225,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return b.onDeletePenaltyPrompt(c)
 	case "penalty_apply":
 		return b.onApplyPenaltyPrompt(c)
+	case "manual_adjust":
+		return b.onManualAdjustPrompt(c)
 
 	// Child actions
 	case "child_penalties":
@@ -285,6 +291,12 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.onAddPenaltyBulk(c, text)
 	case stateEditPenaltyTokens:
 		return b.onEditPenaltyTokens(c, text, inputCtx)
+
+	// Manual adjustment
+	case stateManualAdjustReason:
+		return b.onManualAdjustReason(c, text, inputCtx)
+	case stateManualAdjustTokens:
+		return b.onManualAdjustTokens(c, text, inputCtx)
 	}
 
 	return c.Send("Не понимаю. Нажми /start для начала")
