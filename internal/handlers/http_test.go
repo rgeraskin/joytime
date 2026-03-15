@@ -135,6 +135,7 @@ func getTestDBConfig() *database.Config {
 	}
 
 	return &database.Config{
+		Type:     "postgres",
 		Host:     getEnvOrDefault("PGHOST", "localhost"),
 		User:     getEnvOrDefault("PGUSER", "joytime"),
 		Password: getEnvOrDefault("PGPASSWORD", "password"),

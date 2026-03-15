@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/glebarez/sqlite"
 	"github.com/rgeraskin/joytime/internal/models"
 	postgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -12,6 +13,8 @@ import (
 )
 
 type Config struct {
+	Type     string // "sqlite" (default) or "postgres"
+	Path     string // SQLite file path (default: "joytime.db")
 	User     string
 	Password string
 	Host     string
@@ -20,16 +23,26 @@ type Config struct {
 }
 
 func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-		config.Host,
-		config.User,
-		config.Password,
-		config.Database,
-		config.Port,
-	)
+	var dialector gorm.Dialector
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	switch config.Type {
+	case "postgres":
+		dsn := fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+			config.Host,
+			config.User,
+			config.Password,
+			config.Database,
+			config.Port,
+		)
+		dialector = postgres.Open(dsn)
+	case "sqlite":
+		dialector = sqlite.Open(config.Path)
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", config.Type)
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: gormlogger.New(
 			logger,
 			gormlogger.Config{
@@ -41,21 +54,21 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Configure connection pool
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
-	}
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	if config.Type == "postgres" {
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		}
+		sqlDB.SetMaxOpenConns(25)
+		sqlDB.SetMaxIdleConns(5)
+		sqlDB.SetConnMaxLifetime(5 * time.Minute)
 
-	// Verify connection
-	if err := sqlDB.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		if err := sqlDB.Ping(); err != nil {
+			return nil, fmt.Errorf("failed to ping database: %w", err)
+		}
 	}
 
-	logger.Info("Migrating database...")
+	logger.Info("Migrating database...", "type", config.Type)
 	err = db.AutoMigrate(
 		&models.Users{},
 		&models.Families{},
@@ -69,13 +82,11 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	// Drop old non-partial unique indexes that block re-use of names after soft-delete,
-	// then create partial unique indexes that exclude soft-deleted rows.
-	// GORM's uniqueIndex tag creates regular indexes that block re-creation
-	// of entities with the same name after soft-delete.
+	// Create partial unique indexes that exclude soft-deleted rows.
+	// Both PostgreSQL and SQLite support partial indexes with WHERE clause.
 	for _, table := range []string{"tasks", "rewards", "penalties"} {
-		// Drop the old GORM-generated unique index (non-partial)
-		db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS idx_name`))
+		// Drop the old GORM-generated non-partial unique index
+		db.Exec(`DROP INDEX IF EXISTS idx_name`)
 
 		idx := fmt.Sprintf("idx_%s_family_name_active", table)
 		sql := fmt.Sprintf(
