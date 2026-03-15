@@ -3,7 +3,6 @@ package telegram
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
@@ -640,7 +639,7 @@ func (b *Bot) onDeleteRewardPick(c tele.Context, num int) error {
 	return b.showRewards(c)
 }
 
-// --- Task Review (number grid → immediate action) ---
+// --- Task Review (number grid → approve/reject buttons) ---
 
 func (b *Bot) showPendingReview(c tele.Context) error {
 	auth, err := b.authCtx(c.Sender().ID)
@@ -703,7 +702,54 @@ func (b *Bot) onReviewTaskPick(c tele.Context, num int) error {
 	}
 
 	task := pending[num-1]
-	completedTask, err := b.services.TaskService.CompleteTask(bgCtx(), auth, auth.FamilyUID, task.Name)
+	child, _ := b.services.UserService.FindUser(bgCtx(), task.AssignedToUserID)
+	childName := "?"
+	if child != nil {
+		childName = child.Name
+	}
+
+	// Store task name in state for the approve/reject callback
+	if err := b.setState(c.Sender().ID, stateReviewConfirm, task.Name); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+
+	msg := fmt.Sprintf("Задание: %s\nТокены: %d 💎\nВыполнил: %s", task.Name, task.Tokens, childName)
+	kb := inlineKeyboard(
+		btnRow(
+			btn("Подтвердить", "review_approve"),
+			btn("Отклонить", "review_reject"),
+		),
+		btnRow(btn("Назад", "parent_review")),
+	)
+	return c.Send(msg, kb)
+}
+
+func (b *Bot) onReviewApprove(c tele.Context) error {
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil || user == nil {
+		return b.internalError(c, "Error finding user", err)
+	}
+	taskName := user.InputContext
+	b.clearState(c.Sender().ID)
+
+	if taskName == "" {
+		return c.Send("Задание не выбрано. Попробуй /start")
+	}
+
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	task, err := b.services.TaskService.GetTask(bgCtx(), auth, auth.FamilyUID, taskName)
+	if err != nil {
+		return b.internalError(c, "Error getting task", err)
+	}
+
+	// Remember assigned child before CompleteTask resets it
+	assignedChildID := task.AssignedToUserID
+
+	_, err = b.services.TaskService.CompleteTask(bgCtx(), auth, auth.FamilyUID, taskName)
 	if err != nil {
 		return b.internalError(c, "Error completing task", err)
 	}
@@ -712,16 +758,52 @@ func (b *Bot) onReviewTaskPick(c tele.Context, num int) error {
 		return err
 	}
 
-	// Notify the child who completed the task
-	if completedTask.AssignedToUserID != "" {
-		child, _ := b.services.UserService.FindUser(bgCtx(), completedTask.AssignedToUserID)
-		if child != nil {
-			tgIDStr := strings.TrimPrefix(child.UserID, "user_")
-			if tgID, err := strconv.ParseInt(tgIDStr, 10, 64); err == nil {
-				_, _ = b.bot.Send(&tele.User{ID: tgID},
-					fmt.Sprintf("Задание \"%s\" подтверждено! Ты получил %d 💎", task.Name, task.Tokens))
-			}
-		}
+	// Notify the child
+	if assignedChildID != "" {
+		b.notifyChild(assignedChildID,
+			fmt.Sprintf("Задание \"%s\" подтверждено! Ты получил %d 💎", task.Name, task.Tokens))
+	}
+
+	return b.showParentMenu(c)
+}
+
+func (b *Bot) onReviewReject(c tele.Context) error {
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil || user == nil {
+		return b.internalError(c, "Error finding user", err)
+	}
+	taskName := user.InputContext
+	b.clearState(c.Sender().ID)
+
+	if taskName == "" {
+		return c.Send("Задание не выбрано. Попробуй /start")
+	}
+
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	task, err := b.services.TaskService.GetTask(bgCtx(), auth, auth.FamilyUID, taskName)
+	if err != nil {
+		return b.internalError(c, "Error getting task", err)
+	}
+
+	assignedChildID := task.AssignedToUserID
+
+	_, err = b.services.TaskService.RejectTask(bgCtx(), auth, auth.FamilyUID, taskName)
+	if err != nil {
+		return b.internalError(c, "Error rejecting task", err)
+	}
+
+	if err := c.Send(fmt.Sprintf("Задание \"%s\" отклонено", task.Name)); err != nil {
+		return err
+	}
+
+	// Notify the child
+	if assignedChildID != "" {
+		b.notifyChild(assignedChildID,
+			fmt.Sprintf("Задание \"%s\" отклонено. Попробуй еще раз!", task.Name))
 	}
 
 	return b.showParentMenu(c)

@@ -22,6 +22,7 @@ const (
 	stateAddTaskBulk      = "add_task_bulk"
 	stateAddTaskTokens    = "add_task_tokens"
 	stateEditTaskTokens   = "edit_task_tokens"
+	stateReviewConfirm    = "review_confirm"
 	stateAddRewardBulk    = "add_reward_bulk"
 	stateAddRewardName    = "add_reward_name"
 	stateAddRewardTokens  = "add_reward_tokens"
@@ -108,6 +109,15 @@ func (b *Bot) handleStart(c tele.Context) error {
 func (b *Bot) handleCallback(c tele.Context) error {
 	data := c.Callback().Data
 	_ = c.Respond()
+
+	// Handle callbacks that depend on preserved input state (before clearState)
+	switch data {
+	case "review_approve":
+		return b.onReviewApprove(c)
+	case "review_reject":
+		return b.onReviewReject(c)
+	}
+
 	b.clearState(c.Sender().ID)
 
 	// Handle parameterized callbacks (format: "prefix:number")
@@ -286,6 +296,18 @@ func (b *Bot) internalError(c tele.Context, msg string, err error) error {
 	return c.Send("Внутренняя ошибка. Попробуй /start")
 }
 
+func parentMenuKeyboard() *tele.ReplyMarkup {
+	return inlineKeyboard(
+		btnRow(btn("Задания", "parent_tasks"), btn("Награды", "parent_rewards")),
+	)
+}
+
+func childMenuKeyboard() *tele.ReplyMarkup {
+	return inlineKeyboard(
+		btnRow(btn("Выполнить задание", "child_task_done"), btn("Получить награду", "child_reward_claim")),
+	)
+}
+
 func (b *Bot) notifyParents(familyUID string, excludeTgID int64, message string) {
 	users, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), familyUID, string(domain.RoleParent))
 	if err != nil {
@@ -298,9 +320,20 @@ func (b *Bot) notifyParents(familyUID string, excludeTgID int64, message string)
 		if err != nil || tgID == excludeTgID {
 			continue
 		}
-		if _, err := b.bot.Send(&tele.User{ID: tgID}, message); err != nil {
+		if _, err := b.bot.Send(&tele.User{ID: tgID}, message, parentMenuKeyboard()); err != nil {
 			b.logger.Error("Failed to notify parent", "error", err, "tg_id", tgID)
 		}
+	}
+}
+
+func (b *Bot) notifyChild(childUserID, message string) {
+	tgIDStr := strings.TrimPrefix(childUserID, "user_")
+	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+	if _, err := b.bot.Send(&tele.User{ID: tgID}, message, childMenuKeyboard()); err != nil {
+		b.logger.Error("Failed to notify child", "error", err, "tg_id", tgID)
 	}
 }
 
