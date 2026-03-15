@@ -109,7 +109,11 @@ func (s *TokenService) addTokensInTx(
 }
 
 // requireTokenReadPermission checks that authCtx may read the given user's tokens.
-func (s *TokenService) requireTokenReadPermission(ctx context.Context, authCtx *AuthContext, userID string) error {
+func (s *TokenService) requireTokenReadPermission(
+	ctx context.Context,
+	authCtx *AuthContext,
+	userID string,
+) error {
 	var targetUser models.Users
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&targetUser).Error; err != nil {
 		return err
@@ -194,7 +198,7 @@ func (s *TokenService) ClaimReward(
 			authCtx.UserID,
 			-reward.Tokens,
 			TokenTypeRewardClaimed,
-			"Claimed reward: "+reward.Name,
+			"Награда: "+reward.Name,
 			nil,
 			&rewardID,
 		)

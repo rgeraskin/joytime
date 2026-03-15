@@ -17,7 +17,12 @@ type TaskService struct {
 }
 
 // NewTaskService creates a new task service
-func NewTaskService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService, tokens *TokenService) *TaskService {
+func NewTaskService(
+	db *gorm.DB,
+	logger *log.Logger,
+	auth *CasbinAuthService,
+	tokens *TokenService,
+) *TaskService {
 	return &TaskService{
 		db:     db,
 		logger: logger,
@@ -57,7 +62,11 @@ func (s *TaskService) GetTasksForFamily(
 	}
 
 	var tasks []models.Tasks
-	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Order("tokens DESC").Find(&tasks).Error
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ?", familyUID).
+		Order("tokens DESC").
+		Find(&tasks).
+		Error
 	return tasks, err
 }
 
@@ -151,7 +160,7 @@ func (s *TaskService) CompleteTask(
 				task.AssignedToUserID,
 				task.Tokens,
 				TokenTypeTaskCompleted,
-				"Completed task: "+task.Name,
+				"Задание: "+task.Name,
 				&taskID,
 				nil,
 			); err != nil {

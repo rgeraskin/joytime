@@ -17,7 +17,12 @@ type PenaltyService struct {
 }
 
 // NewPenaltyService creates a new penalty service
-func NewPenaltyService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService, tokens *TokenService) *PenaltyService {
+func NewPenaltyService(
+	db *gorm.DB,
+	logger *log.Logger,
+	auth *CasbinAuthService,
+	tokens *TokenService,
+) *PenaltyService {
 	return &PenaltyService{
 		db:     db,
 		logger: logger,
@@ -49,7 +54,11 @@ func (s *PenaltyService) GetPenaltiesForFamily(
 	}
 
 	var penalties []models.Penalties
-	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Order("tokens DESC").Find(&penalties).Error
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ?", familyUID).
+		Order("tokens DESC").
+		Find(&penalties).
+		Error
 	return penalties, err
 }
 
@@ -146,7 +155,7 @@ func (s *PenaltyService) ApplyPenalty(
 		childUserID,
 		-penalty.Tokens,
 		TokenTypePenalty,
-		"Penalty: "+penalty.Name,
+		"Штраф: "+penalty.Name,
 		nil,
 		nil,
 	); err != nil {
