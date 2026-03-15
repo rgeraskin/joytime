@@ -342,16 +342,11 @@ func (b *Bot) internalError(c tele.Context, msg string, err error) error {
 }
 
 func parentMenuKeyboard() *tele.ReplyMarkup {
-	return inlineKeyboard(
-		btnRow(btn("Задания", "parent_tasks"), btn("Награды", "parent_rewards")),
-	)
+	return inlineKeyboard(btnRow(btn("Меню", "back_parent")))
 }
 
 func childMenuKeyboard() *tele.ReplyMarkup {
-	return inlineKeyboard(
-		btnRow(btn("Выполнить задание", "child_task_done"), btn("Получить награду", "child_reward_claim")),
-		btnRow(btn("Штрафы", "child_penalties")),
-	)
+	return inlineKeyboard(btnRow(btn("Меню", "back_child")))
 }
 
 func (b *Bot) notifyParents(familyUID string, excludeTgID int64, message string) {
