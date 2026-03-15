@@ -1,22 +1,28 @@
 # JoyTime
 
-Семейное приложение для управления задачами и наградами с токен-экономикой. Родители назначают задания, дети выполняют их за токены, токены обмениваются на награды. Мультиплатформенное (Telegram, web, mobile).
+Семейное приложение для управления задачами и наградами с токен-экономикой. Родители назначают задания, дети выполняют их за токены, токены обмениваются на награды. Основной интерфейс — Telegram-бот, также доступен REST API.
 
 ## Основные функции
 
 - Управление семьями и пользователями (родители/дети)
-- Создание и управление заданиями и наградами
+- Создание и управление заданиями, наградами и штрафами
 - Система токенов с полной историей операций
+- Задания повторяемые — сбрасываются после одобрения родителем
+- Двухэтапная проверка заданий: ребёнок отмечает → родитель подтверждает/отклоняет
+- Массовый импорт заданий/наград/штрафов списком
+- Ручная коррекция токенов с указанием причины
+- Уведомления между родителями и детьми
 - RBAC+ABAC авторизация через Casbin (роли + изоляция семей)
-- REST API (`/api/v1/`) для интеграции с любыми UI
-- Мультиплатформенность (telegram, web, mobile)
+- SQLite по умолчанию, PostgreSQL опционально
+- REST API (`/api/v1/`) для интеграции с web/mobile
+- Telegram-бот с inline-клавиатурами
 
 ## Быстрый старт
 
 ### Требования
 
 - [mise](https://mise.jdx.dev/) — автоматически установит Go 1.23+
-- Docker (для PostgreSQL)
+- Docker (только для PostgreSQL, необязателен для SQLite)
 
 ### Установка и запуск
 
@@ -25,21 +31,54 @@ git clone <repository-url>
 cd joytime
 
 mise install              # Установить зависимости
-mise run setup-env        # Создать .env файл
+mise run setup-env        # Создать .env файл (указать TOKEN бота)
+mise run run              # Собрать и запустить (SQLite + Telegram бот + HTTP на :8080)
+```
+
+Для PostgreSQL:
+```bash
 mise run db:up            # Запустить PostgreSQL
-mise run db:fill          # Заполнить тестовыми данными
-mise run run              # Собрать и запустить (порт 8080)
+# В .env: DB_TYPE=postgres + PG* переменные
+mise run run
 ```
 
 ### Тестирование
 
 ```bash
-mise run test             # Все тесты (автоматически поднимает БД)
+mise run test             # Все тесты (автоматически поднимает PostgreSQL)
 mise run test-coverage    # Отчет покрытия
 mise run ci               # Формат + линт + тесты
 ```
 
 Отдельный тест: `go test ./internal/handlers/ -run TestName -v` (БД должна быть запущена).
+
+## Telegram-бот
+
+### Родитель
+
+- Главное меню: код семьи (копируемый), баланс детей, кнопка проверки заданий
+- **Задания**: список, добавить (по одному или списком), изменить цену, удалить
+- **Награды**: список, добавить (по одному или списком), изменить цену, удалить
+- **Штрафы**: список, добавить (по одному или списком), изменить цену, удалить, применить к ребёнку
+- **Коррекция**: ручное начисление/списание токенов с указанием причины
+- **Проверка**: одобрить или отклонить выполненные ребёнком задания
+
+### Ребёнок
+
+- Главное меню: баланс токенов
+- **Выполнить задание**: выбрать задание → отправить на проверку родителю
+- **Получить награду**: выбрать награду → списать токены
+- **Штрафы**: просмотр списка (только чтение)
+
+### Массовый импорт
+
+Задания, награды и штрафы можно добавлять списком — каждый на новой строке, последнее слово — количество токенов:
+
+```
+Загрузить посудомойку 2
+Вынести мусор 5
+Читать час 12
+```
 
 ## API
 
@@ -94,73 +133,14 @@ GET    /api/v1/token-history           # Вся история
 GET    /api/v1/token-history/{userID}  # История пользователя
 ```
 
-### Примеры запросов
-
-```bash
-# Создать семью
-curl -X POST http://localhost:8080/api/v1/families \
-  -H "Content-Type: application/json" \
-  -H "X-User-ID: user_parent_123" \
-  -d '{"name": "Семья Ивановых"}'
-
-# Создать задание (только родитель)
-curl -X POST http://localhost:8080/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -H "X-User-ID: user_parent_123" \
-  -d '{
-    "family_uid": "abc123",
-    "name": "Убраться в комнате",
-    "tokens": 10,
-    "description": "Навести порядок и пропылесосить"
-  }'
-
-# Создать награду (только родитель)
-curl -X POST http://localhost:8080/api/v1/rewards \
-  -H "Content-Type: application/json" \
-  -H "X-User-ID: user_parent_123" \
-  -d '{
-    "family_uid": "abc123",
-    "name": "Мороженое",
-    "tokens": 15,
-    "description": "Поход в кафе за мороженым"
-  }'
-
-# Начислить токены
-curl -X POST http://localhost:8080/api/v1/tokens \
-  -H "Content-Type: application/json" \
-  -H "X-User-ID: user_parent_123" \
-  -d '{
-    "amount": 10,
-    "type": "task_completed",
-    "description": "Выполнил задание: Убраться в комнате"
-  }'
-```
-
-### Формат ответов
-
-Успех:
-```json
-{
-  "data": { ... },
-  "message": "optional"
-}
-```
-
-Ошибка:
-```json
-{
-  "error": "описание ошибки"
-}
-```
-
 ## Архитектура
 
 Трёхуровневая архитектура в `internal/`:
 
 ```
 cmd/
-├── main.go                    # Точка входа
-└── config.go                  # Конфигурация
+├── main.go                    # Точка входа (HTTP + Telegram)
+└── config.go                  # Конфигурация (SQLite/PostgreSQL)
 
 internal/
 ├── handlers/                  # HTTP-слой
@@ -169,97 +149,65 @@ internal/
 │   ├── handler_families.go    # Эндпоинты семей
 │   ├── handler_users.go       # Эндпоинты пользователей
 │   ├── handler_tasks.go       # Эндпоинты заданий
-│   ├── tasks_business.go      # Бизнес-логика заданий в handlers
 │   ├── handler_rewards.go     # Эндпоинты наград
 │   ├── handler_tokens.go      # Эндпоинты токенов
 │   ├── types.go               # Типы, хелперы ответов
-│   ├── constants.go           # Константы ошибок и ролей
-│   └── validation.go          # Валидация и санитизация
+│   └── validation.go          # Валидация
+│
+├── telegram/                  # Telegram-бот
+│   ├── bot.go                 # Bot struct, маршрутизация, хелперы
+│   ├── registration.go        # Регистрация, выбор роли, семья
+│   ├── parent.go              # Меню родителя, CRUD задания/награды/штрафы
+│   └── child.go               # Меню ребёнка, выполнение, получение наград
 │
 ├── domain/                    # Бизнес-логика
 │   ├── services.go            # Агрегатор всех сервисов
-│   ├── service_task.go        # TaskService (CRUD + RBAC)
-│   ├── service_reward.go      # RewardService (CRUD + RBAC)
+│   ├── service_task.go        # TaskService (CRUD + complete/reject)
+│   ├── service_reward.go      # RewardService (CRUD)
+│   ├── service_penalty.go     # PenaltyService (CRUD + apply)
 │   ├── service_token.go       # TokenService (баланс, история, claim)
-│   ├── service_user.go        # UserService (профили, AuthContext)
+│   ├── service_user.go        # UserService (профили, AuthContext, состояние)
 │   ├── service_family.go      # FamilyService (семьи, UID генерация)
 │   ├── casbin_auth.go         # Casbin RBAC+ABAC (программная модель)
-│   ├── types.go               # AuthContext, DTO обновлений, ошибки
+│   ├── types.go               # AuthContext, DTO, ошибки, валидация
 │   └── utils.go               # UpdateFields хелпер
 │
 ├── database/                  # Подключение к БД
-│   ├── client.go              # GORM setup, миграция
+│   ├── client.go              # GORM setup (SQLite/PostgreSQL), миграция
 │   └── fill.go                # Тестовые данные
 │
 └── models/                    # GORM модели
-    └── schema.go              # Families, Users, Tasks, Rewards, Tokens, TokenHistory
+    └── schema.go              # Families, Users, Tasks, Rewards, Penalties, Tokens, TokenHistory
 ```
-
-**Поток запроса**: HTTP → валидация → auth middleware (строит AuthContext) → handler → domain service (Casbin проверка + бизнес-правила) → GORM → PostgreSQL.
-
-## Авторизация (Casbin RBAC+ABAC)
-
-Модель определена программно в `domain/casbin_auth.go` (in-memory, без файлов политик).
-
-| Ресурс   | Действие      | Родитель | Ребёнок | Примечание                                |
-|----------|---------------|----------|---------|-------------------------------------------|
-| tasks    | create        | +        | -       | Только родители создают задания           |
-| tasks    | read          | +        | +       | Все видят задания семьи                   |
-| tasks    | update        | +        | -       | Только родители редактируют               |
-| tasks    | delete        | +        | -       | Только родители удаляют                   |
-| tasks    | complete      | +        | +       | Ребёнок → "check", родитель → "completed" |
-| rewards  | create        | +        | -       | Только родители создают награды           |
-| rewards  | read          | +        | +       | Все видят награды                         |
-| rewards  | update        | +        | -       | Только родители редактируют               |
-| rewards  | delete        | +        | -       | Только родители удаляют                   |
-| rewards  | claim         | -        | +       | Только дети обменивают токены на награды   |
-| tokens   | read          | +        | +       | Свои токены                               |
-| tokens   | read_others   | +        | -       | Родители видят токены всей семьи          |
-| tokens   | add           | +        | -       | Только родители начисляют                 |
-| users    | read          | +        | +       | Свой профиль                              |
-| users    | update        | +        | +       | Свой профиль                              |
-| users    | update_others | +        | -       | Родители редактируют детей                |
-| users    | delete        | +        | -       | Родители удаляют пользователей            |
-| family   | read          | +        | +       | Все видят семью                           |
-| family   | update        | +        | -       | Только родители редактируют               |
-| family   | create        | +        | -       | Создание семьи при регистрации            |
-
-Семьи полностью изолированы — пользователи не могут получить доступ к данным чужих семей.
-
-## Структуры данных
-
-| Модель       | Ключевые поля                                                        |
-|--------------|----------------------------------------------------------------------|
-| Families     | name, uid (auto), created_by_user_id                                 |
-| Users        | user_id, name, role (parent/child), family_uid, platform             |
-| Tasks        | family_uid, name, description, tokens, status (new/check/completed)  |
-| Rewards      | family_uid, name, description, tokens                                |
-| Tokens       | user_id, tokens (баланс)                                            |
-| TokenHistory | user_id, amount (+/-), type, description, task_id, reward_id         |
 
 ## Окружение
 
 Настраивается через `.env` (см. `mise run setup-env`):
 
-```env
-PGHOST=localhost
-PGPORT=5432
-PGUSER=joytime
-PGPASSWORD=password
-PGDATABASE=joytime
-DEBUG=1
-```
+| Переменная | По умолчанию | Описание |
+|------------|-------------|----------|
+| `TOKEN` | (обязательно) | Токен Telegram-бота |
+| `DB_TYPE` | `sqlite` | Тип БД: `sqlite` или `postgres` |
+| `DB_PATH` | `joytime.db` | Путь к файлу SQLite |
+| `PGHOST` | — | Хост PostgreSQL (обязательно при postgres) |
+| `PGPORT` | — | Порт PostgreSQL |
+| `PGUSER` | — | Пользователь PostgreSQL |
+| `PGPASSWORD` | — | Пароль PostgreSQL |
+| `PGDATABASE` | — | Имя базы PostgreSQL |
+| `DEBUG` | — | Включает отладочное логирование |
 
 ## Полезные команды
 
 ```bash
-mise run build          # Сборка
-mise run run            # Сборка и запуск
-mise run test           # Тесты
-mise run fmt            # Форматирование
-mise run lint           # Линтер
-mise run db:up          # Запустить PostgreSQL
-mise run db:down        # Остановить PostgreSQL
-mise run db:reset       # Полный сброс с тестовыми данными
-mise run db:shell       # psql в базу данных
+mise run build              # Сборка
+mise run run                # Сборка и запуск
+mise run test               # Тесты
+mise run fmt                # Форматирование
+mise run lint               # Линтер
+mise run db:up              # Запустить PostgreSQL
+mise run db:down            # Остановить PostgreSQL
+mise run db:reset           # Полный сброс с тестовыми данными
+mise run db:dump [file]     # Дамп базы (по умолчанию dump.sql)
+mise run db:restore [file]  # Восстановление базы
+mise run db:shell           # psql в базу данных
 ```
