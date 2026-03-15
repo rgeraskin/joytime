@@ -19,6 +19,7 @@ import (
 const (
 	stateJoinFamily       = "join_family"
 	stateAddTaskName      = "add_task_name"
+	stateAddTaskBulk      = "add_task_bulk"
 	stateAddTaskTokens    = "add_task_tokens"
 	stateEditTaskTokens   = "edit_task_tokens"
 	stateAddRewardName    = "add_reward_name"
@@ -160,6 +161,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	// Task CRUD
 	case "task_add":
 		return b.onAddTaskPrompt(c)
+	case "task_add_bulk":
+		return b.onAddTaskBulkPrompt(c)
 	case "task_edit":
 		return b.onEditTaskPrompt(c)
 	case "task_delete":
@@ -208,6 +211,8 @@ func (b *Bot) handleText(c tele.Context) error {
 	// Task management (parent)
 	case stateAddTaskName:
 		return b.onAddTaskName(c, text)
+	case stateAddTaskBulk:
+		return b.onAddTaskBulk(c, text)
 	case stateAddTaskTokens:
 		return b.onAddTaskTokens(c, text, inputCtx)
 	case stateEditTaskTokens:
@@ -324,6 +329,11 @@ func btn(text, data string) tele.InlineButton {
 
 func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
+}
+
+// isDuplicateKey checks if a DB error is a unique constraint violation (PostgreSQL SQLSTATE 23505)
+func isDuplicateKey(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "23505")
 }
 
 // numberGrid builds a grid of numbered buttons with placeholder padding.

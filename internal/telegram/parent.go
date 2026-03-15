@@ -84,8 +84,9 @@ func (b *Bot) showTasks(c tele.Context) error {
 
 	msg := formatList("Задания", items)
 	kb := inlineKeyboard(
-		btnRow(btn("Добавить", "task_add"), btn("Удалить", "task_delete")),
-		btnRow(btn("Изменить цену", "task_edit"), btn("Назад", "back_parent")),
+		btnRow(btn("Добавить", "task_add"), btn("Добавить списком", "task_add_bulk")),
+		btnRow(btn("Удалить", "task_delete"), btn("Изменить цену", "task_edit")),
+		btnRow(btn("Назад", "back_parent")),
 	)
 	return c.Send(msg, kb)
 }
@@ -126,11 +127,99 @@ func (b *Bot) onAddTaskTokens(c tele.Context, text, taskName string) error {
 		if errors.Is(err, domain.ErrValidation) {
 			return c.Send(err.Error())
 		}
+		if isDuplicateKey(err) {
+			return c.Send("Задание с таким именем уже существует")
+		}
 		return b.internalError(c, "Error creating task", err)
 	}
 
 	b.clearState(c.Sender().ID)
 	if err := c.Send("Задание добавлено!"); err != nil {
+		return err
+	}
+	return b.showTasks(c)
+}
+
+// --- Task bulk add ---
+
+func (b *Bot) onAddTaskBulkPrompt(c tele.Context) error {
+	if err := b.setState(c.Sender().ID, stateAddTaskBulk, ""); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+	return c.Send("Введи задания списком, каждое на новой строке.\nПоследнее слово — количество токенов.\n\nПример:\nЗагрузить посудомойку 2\nВынести мусор 5\nЧитать час 12")
+}
+
+func (b *Bot) onAddTaskBulk(c tele.Context, text string) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	lines := strings.Split(text, "\n")
+	var added []string
+	var errs []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		lastSpace := strings.LastIndex(line, " ")
+		if lastSpace < 0 {
+			errs = append(errs, fmt.Sprintf("'%s' — нет токенов", line))
+			continue
+		}
+
+		name := strings.TrimSpace(line[:lastSpace])
+		tokensStr := strings.TrimSpace(line[lastSpace+1:])
+		tokens, err := parseNumber(tokensStr)
+		if err != nil || name == "" {
+			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
+			continue
+		}
+
+		task := &models.Tasks{
+			Entities: models.Entities{
+				FamilyUID: auth.FamilyUID,
+				Name:      name,
+				Tokens:    tokens,
+			},
+		}
+		if err := b.services.TaskService.CreateTask(bgCtx(), auth, task); err != nil {
+			if isDuplicateKey(err) {
+				errs = append(errs, fmt.Sprintf("'%s' — уже существует", name))
+			} else {
+				errs = append(errs, fmt.Sprintf("'%s' — ошибка", name))
+			}
+			continue
+		}
+		added = append(added, fmt.Sprintf("%s: %d 💎", name, tokens))
+	}
+
+	b.clearState(c.Sender().ID)
+
+	var sb strings.Builder
+	if len(added) > 0 {
+		sb.WriteString(fmt.Sprintf("Добавлено %d:\n", len(added)))
+		for _, a := range added {
+			sb.WriteString("  + " + a + "\n")
+		}
+	}
+	if len(errs) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Ошибки:\n")
+		for _, e := range errs {
+			sb.WriteString("  - " + e + "\n")
+		}
+	}
+	if len(added) == 0 && len(errs) == 0 {
+		sb.WriteString("Не найдено заданий для добавления")
+	}
+
+	if err := c.Send(sb.String()); err != nil {
 		return err
 	}
 	return b.showTasks(c)
@@ -324,6 +413,9 @@ func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 	if err := b.services.RewardService.CreateReward(bgCtx(), auth, reward); err != nil {
 		if errors.Is(err, domain.ErrValidation) {
 			return c.Send(err.Error())
+		}
+		if isDuplicateKey(err) {
+			return c.Send("Награда с таким именем уже существует")
 		}
 		return b.internalError(c, "Error creating reward", err)
 	}
