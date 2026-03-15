@@ -1253,12 +1253,13 @@ func (b *Bot) onFamilyInviteCreate(c tele.Context, role string) error {
 		roleName = "ребёнка"
 	}
 
+	link := b.inviteLink(invite.Code)
 	msg := fmt.Sprintf(
-		"🔑 Код приглашения для %s:\n\n`%s`\n\nКод одноразовый",
+		"🔑 Приглашение для %s:\n\n%s\n\nСсылка одноразовая",
 		roleName,
-		invite.Code,
+		link,
 	)
-	if err := c.Send(msg, tele.ModeMarkdownV2); err != nil {
+	if err := c.Send(msg); err != nil {
 		return err
 	}
 	return b.showFamilyMembers(c)

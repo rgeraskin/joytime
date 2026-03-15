@@ -89,6 +89,11 @@ func (b *Bot) registerHandlers() {
 func (b *Bot) handleStart(c tele.Context) error {
 	b.clearState(c.Sender().ID)
 
+	// Check for deep link payload (t.me/bot?start=INVITE_CODE)
+	if payload := c.Message().Payload; payload != "" {
+		return b.handleDeepLink(c, payload)
+	}
+
 	user, err := b.findUser(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error finding user", err)
@@ -111,6 +116,29 @@ func (b *Bot) handleStart(c tele.Context) error {
 	}
 
 	return b.internalError(c, "Unknown user role", fmt.Errorf("role: %s", user.Role))
+}
+
+// handleDeepLink processes /start with an invite code payload
+func (b *Bot) handleDeepLink(c tele.Context, code string) error {
+	// Ensure user record exists
+	user, _ := b.findUser(c.Sender().ID)
+	if user == nil {
+		newUser := &models.Users{
+			UserID:   makeUserID(c.Sender().ID),
+			Name:     extractName(c.Sender()),
+			Platform: "telegram",
+		}
+		if err := b.services.UserService.CreateUser(bgCtx(), newUser); err != nil {
+			return b.internalError(c, "Error creating user", err)
+		}
+	}
+
+	// Try to use the invite code directly
+	return b.onInviteJoinText(c, code)
+}
+
+func (b *Bot) inviteLink(code string) string {
+	return fmt.Sprintf("t.me/%s?start=%s", b.bot.Me.Username, code)
 }
 
 // handleCallback routes all inline keyboard button presses
