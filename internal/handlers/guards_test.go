@@ -274,6 +274,51 @@ func TestRewardClaimHTTP(t *testing.T) {
 	})
 }
 
+func TestEntitiesSortedByTokensDescending(t *testing.T) {
+	setupTestDB(t)
+	family, parent, _, _ := setupServiceTestData(t)
+
+	parentCtx := &domain.AuthContext{
+		UserID:    parent.UserID,
+		UserRole:  domain.RoleParent,
+		FamilyUID: family.UID,
+	}
+
+	// Create tasks with different token values
+	for _, tc := range []struct{ name string; tokens int }{
+		{"Low Task", 5}, {"High Task", 20}, {"Mid Task", 10},
+	} {
+		task := &models.Tasks{Entities: models.Entities{FamilyUID: family.UID, Name: tc.name, Tokens: tc.tokens}}
+		require.NoError(t, testHandler.services.TaskService.CreateTask(context.Background(), parentCtx, task))
+	}
+
+	// Create rewards with different token values
+	for _, rc := range []struct{ name string; tokens int }{
+		{"Cheap Reward", 3}, {"Expensive Reward", 15}, {"Mid Reward", 7},
+	} {
+		reward := &models.Rewards{Entities: models.Entities{FamilyUID: family.UID, Name: rc.name, Tokens: rc.tokens}}
+		require.NoError(t, testHandler.services.RewardService.CreateReward(context.Background(), parentCtx, reward))
+	}
+
+	t.Run("Tasks sorted by tokens descending", func(t *testing.T) {
+		tasks, err := testHandler.services.TaskService.GetTasksForFamily(context.Background(), parentCtx, family.UID)
+		require.NoError(t, err)
+		require.Len(t, tasks, 3)
+		assert.Equal(t, 20, tasks[0].Tokens)
+		assert.Equal(t, 10, tasks[1].Tokens)
+		assert.Equal(t, 5, tasks[2].Tokens)
+	})
+
+	t.Run("Rewards sorted by tokens descending", func(t *testing.T) {
+		rewards, err := testHandler.services.RewardService.GetRewardsForFamily(context.Background(), parentCtx, family.UID)
+		require.NoError(t, err)
+		require.Len(t, rewards, 3)
+		assert.Equal(t, 15, rewards[0].Tokens)
+		assert.Equal(t, 7, rewards[1].Tokens)
+		assert.Equal(t, 3, rewards[2].Tokens)
+	})
+}
+
 func TestParseFamilyEntityPath(t *testing.T) {
 	tests := []struct {
 		name       string

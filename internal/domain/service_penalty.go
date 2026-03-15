@@ -49,7 +49,7 @@ func (s *PenaltyService) GetPenaltiesForFamily(
 	}
 
 	var penalties []models.Penalties
-	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Find(&penalties).Error
+	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Order("tokens DESC").Find(&penalties).Error
 	return penalties, err
 }
 

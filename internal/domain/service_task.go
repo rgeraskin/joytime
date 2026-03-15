@@ -57,7 +57,7 @@ func (s *TaskService) GetTasksForFamily(
 	}
 
 	var tasks []models.Tasks
-	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Find(&tasks).Error
+	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Order("tokens DESC").Find(&tasks).Error
 	return tasks, err
 }
 
