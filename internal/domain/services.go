@@ -13,6 +13,7 @@ type Services struct {
 	FamilyService  *FamilyService
 	RewardService  *RewardService
 	PenaltyService *PenaltyService
+	InviteService  *InviteService
 	Auth           *CasbinAuthService
 }
 
@@ -33,6 +34,7 @@ func NewServices(db *gorm.DB, logger *log.Logger) (*Services, error) {
 		FamilyService:  NewFamilyService(db, logger, auth),
 		RewardService:  NewRewardService(db, logger, auth),
 		PenaltyService: NewPenaltyService(db, logger, auth, tokenService),
+		InviteService:  NewInviteService(db, logger, auth),
 		Auth:           auth,
 	}, nil
 }

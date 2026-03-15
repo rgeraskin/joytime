@@ -151,6 +151,7 @@ func (cas *CasbinAuthService) InitializePolicies() error {
 		{"parent", "family", "read"},
 		{"parent", "family", "update"},
 		{"parent", "family", "create"},
+		{"parent", "invites", "create"},
 
 		// Child permissions
 		{"child", "tasks", "read"},

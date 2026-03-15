@@ -95,12 +95,12 @@ func (b *Bot) handleStart(c tele.Context) error {
 	}
 
 	if user == nil {
-		return b.showRoleSelection(c)
+		return b.showWelcome(c)
 	}
 
 	// User exists but hasn't joined a family yet
 	if user.FamilyUID == "" {
-		return b.showFamilySetup(c, user.Role)
+		return b.showWelcome(c)
 	}
 
 	switch user.Role {
@@ -180,14 +180,10 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return nil
 
 	// Registration
-	case "role_parent":
-		return b.onSelectRole(c, string(domain.RoleParent))
-	case "role_child":
-		return b.onSelectRole(c, string(domain.RoleChild))
 	case "family_create":
 		return b.onFamilyCreate(c)
-	case "family_join":
-		return b.onFamilyJoinPrompt(c)
+	case "invite_join":
+		return b.onInviteJoinPrompt(c)
 
 	// Parent navigation
 	case "parent_tasks":
@@ -238,6 +234,12 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return b.showFamilyMembers(c)
 	case "parent_history":
 		return b.showParentHistoryPrompt(c)
+	case "family_invite":
+		return b.onFamilyInviteRolePrompt(c)
+	case "invite_role_parent":
+		return b.onFamilyInviteCreate(c, string(domain.RoleParent))
+	case "invite_role_child":
+		return b.onFamilyInviteCreate(c, string(domain.RoleChild))
 	case "family_rename":
 		return b.onRenameMemberPrompt(c)
 	case "family_delete":
@@ -277,7 +279,7 @@ func (b *Bot) handleText(c tele.Context) error {
 	switch state {
 	// Registration
 	case stateJoinFamily:
-		return b.onFamilyJoinText(c, text)
+		return b.onInviteJoinText(c, text)
 
 	// Task management (parent)
 	case stateAddTaskName:

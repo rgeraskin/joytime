@@ -56,6 +56,16 @@ type Tokens struct {
 	DeletedAt gorm.DeletedAt `json:"-"`
 }
 
+// Invites stores one-time invite codes for joining families
+type Invites struct {
+	gorm.Model
+	Code            string `json:"code" gorm:"uniqueIndex"`
+	FamilyUID       string `json:"family_uid" gorm:"index"`
+	Role            string `json:"role"`
+	Used            bool   `json:"used" gorm:"default:false"`
+	CreatedByUserID string `json:"created_by_user_id"`
+}
+
 // TokenHistory tracks all token operations
 type TokenHistory struct {
 	gorm.Model

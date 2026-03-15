@@ -22,17 +22,15 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Код семьи: `%s`\n\n", auth.FamilyUID))
-
 	if len(children) == 0 {
-		sb.WriteString("Дети еще не добавлены\\.\\.\\.\n")
+		sb.WriteString("Дети еще не добавлены...\n")
 	} else {
 		for _, child := range children {
 			tokens, err := b.services.TokenService.GetUserTokens(bgCtx(), auth, child.UserID)
 			if err != nil {
 				return b.internalError(c, "Error getting tokens", err)
 			}
-			sb.WriteString(fmt.Sprintf("%s: %d 💎\n", escapeMarkdownV2(child.Name), tokens.Tokens))
+			sb.WriteString(fmt.Sprintf("%s: %d 💎\n", child.Name, tokens.Tokens))
 		}
 	}
 
@@ -62,7 +60,7 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 		)
 	}
 
-	return c.Send(sb.String(), tele.ModeMarkdownV2, inlineKeyboard(rows...))
+	return c.Send(sb.String(), inlineKeyboard(rows...))
 }
 
 // --- Tasks ---
@@ -1154,10 +1152,45 @@ func (b *Bot) showFamilyMembers(c tele.Context) error {
 
 	msg := formatList("👨‍👩‍👧‍👦 Семья", items)
 	kb := inlineKeyboard(
+		btnRow(btn("➕ Пригласить", "family_invite")),
 		btnRow(btn("✏️ Переименовать", "family_rename"), btn("🗑 Удалить", "family_delete")),
 		btnRow(btn("⬅️ Назад", "back_parent")),
 	)
 	return c.Send(msg, kb)
+}
+
+func (b *Bot) onFamilyInviteRolePrompt(c tele.Context) error {
+	kb := inlineKeyboard(
+		btnRow(
+			btn("👨‍👩‍👧 Родитель", "invite_role_parent"),
+			btn("👶 Ребёнок", "invite_role_child"),
+		),
+		btnRow(btn("⬅️ Назад", "parent_family")),
+	)
+	return c.Send("Кого приглашаем?", kb)
+}
+
+func (b *Bot) onFamilyInviteCreate(c tele.Context, role string) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	invite, err := b.services.InviteService.CreateInvite(bgCtx(), auth, auth.FamilyUID, role)
+	if err != nil {
+		return b.internalError(c, "Error creating invite", err)
+	}
+
+	roleName := "родителя"
+	if role == string(domain.RoleChild) {
+		roleName = "ребёнка"
+	}
+
+	msg := fmt.Sprintf("🔑 Код приглашения для %s:\n\n`%s`\n\nКод одноразовый", roleName, invite.Code)
+	if err := c.Send(msg, tele.ModeMarkdownV2); err != nil {
+		return err
+	}
+	return b.showFamilyMembers(c)
 }
 
 func (b *Bot) onRenameMemberPrompt(c tele.Context) error {

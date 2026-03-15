@@ -10,115 +10,113 @@ import (
 	"gorm.io/gorm"
 )
 
-func (b *Bot) showRoleSelection(c tele.Context) error {
+func (b *Bot) showWelcome(c tele.Context) error {
 	name := extractName(c.Sender())
 	kb := inlineKeyboard(
 		btnRow(
-			btn("Я родитель", "role_parent"),
-			btn("Я ребенок", "role_child"),
+			btn("🏠 Создать семью", "family_create"),
+			btn("🔑 Ввести код", "invite_join"),
 		),
 	)
 	return c.Send(
-		fmt.Sprintf("👋 Привет, %s! Кто ты?", name),
+		fmt.Sprintf("👋 Привет, %s! Создай семью или введи код приглашения.", name),
 		kb,
 	)
 }
 
-func (b *Bot) showFamilySetup(c tele.Context, role string) error {
-	if role == string(domain.RoleParent) {
-		kb := inlineKeyboard(
-			btnRow(
-				btn("Создать новую", "family_create"),
-				btn("Присоединиться", "family_join"),
-			),
-		)
-		return c.Send("Ты еще не в семье. Создать новую или присоединиться?", kb)
-	}
-
-	// Child
-	if err := b.setState(c.Sender().ID, stateJoinFamily, ""); err != nil {
-		return b.internalError(c, "Error setting state", err)
-	}
-	return c.Send("✏️ Попроси родителей дать тебе код семьи и введи его здесь")
-}
-
-func (b *Bot) onSelectRole(c tele.Context, role string) error {
-	user := &models.Users{
-		UserID:   makeUserID(c.Sender().ID),
-		Name:     extractName(c.Sender()),
-		Role:     role,
-		Platform: "telegram",
-	}
-	if err := b.services.UserService.CreateUser(bgCtx(), user); err != nil {
-		return b.internalError(c, "Error creating user", err)
-	}
-
-	return b.showFamilySetup(c, role)
-}
-
 func (b *Bot) onFamilyCreate(c tele.Context) error {
+	// Create parent user if not exists
+	userID := makeUserID(c.Sender().ID)
+	user, _ := b.findUser(c.Sender().ID)
+	if user == nil {
+		newUser := &models.Users{
+			UserID:   userID,
+			Name:     extractName(c.Sender()),
+			Role:     string(domain.RoleParent),
+			Platform: "telegram",
+		}
+		if err := b.services.UserService.CreateUser(bgCtx(), newUser); err != nil {
+			return b.internalError(c, "Error creating user", err)
+		}
+	}
+
 	family := &models.Families{
 		Name:            fmt.Sprintf("Семья %s", extractName(c.Sender())),
-		CreatedByUserID: makeUserID(c.Sender().ID),
+		CreatedByUserID: userID,
 	}
 	if err := b.services.FamilyService.CreateFamily(bgCtx(), family); err != nil {
 		return b.internalError(c, "Error creating family", err)
 	}
 
-	if err := b.services.UserService.UpdateFamilyUID(bgCtx(), makeUserID(c.Sender().ID), family.UID); err != nil {
+	if err := b.services.UserService.UpdateFamilyUID(bgCtx(), userID, family.UID); err != nil {
 		return b.internalError(c, "Error updating user family", err)
 	}
 
-	if err := c.Send(fmt.Sprintf(
-		"🎉 Семья создана\\! Код: `%s`\n\nЕго нужно будет ввести остальным членам семьи",
-		family.UID,
-	), tele.ModeMarkdownV2); err != nil {
+	if err := c.Send("🎉 Семья создана! Теперь пригласи участников через меню «Семья»."); err != nil {
 		return err
 	}
 	return b.showParentMenu(c)
 }
 
-func (b *Bot) onFamilyJoinPrompt(c tele.Context) error {
+func (b *Bot) onInviteJoinPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateJoinFamily, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("✏️ Введи код семьи")
+	return c.Send("✏️ Введи код приглашения")
 }
 
-func (b *Bot) onFamilyJoinText(c tele.Context, familyUID string) error {
-	// Verify family exists
-	_, err := b.services.FamilyService.FindFamily(bgCtx(), familyUID)
+func (b *Bot) onInviteJoinText(c tele.Context, code string) error {
+	invite, err := b.services.InviteService.UseInvite(bgCtx(), code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := b.setState(c.Sender().ID, stateJoinFamily, ""); err != nil {
 				return b.internalError(c, "Error setting state", err)
 			}
-			return c.Send("❌ Семья с таким кодом не найдена. Проверь код и попробуй еще раз")
+			return c.Send("❌ Код приглашения не найден или уже использован. Попробуй ещё раз")
 		}
-		return b.internalError(c, "Error finding family", err)
+		return b.internalError(c, "Error using invite", err)
 	}
 
-	if err := b.services.UserService.UpdateFamilyUID(bgCtx(), makeUserID(c.Sender().ID), familyUID); err != nil {
-		return b.internalError(c, "Error joining family", err)
-	}
-
+	// Create user with role from invite
+	userID := makeUserID(c.Sender().ID)
 	user, _ := b.findUser(c.Sender().ID)
+	if user == nil {
+		newUser := &models.Users{
+			UserID:    userID,
+			Name:      extractName(c.Sender()),
+			Role:      invite.Role,
+			FamilyUID: invite.FamilyUID,
+			Platform:  "telegram",
+		}
+		if err := b.services.UserService.CreateUser(bgCtx(), newUser); err != nil {
+			return b.internalError(c, "Error creating user", err)
+		}
+	} else {
+		// Update existing user
+		if err := b.services.UserService.UpdateFamilyUID(bgCtx(), userID, invite.FamilyUID); err != nil {
+			return b.internalError(c, "Error joining family", err)
+		}
+	}
+
+	b.clearState(c.Sender().ID)
 
 	if err := c.Send("🎉 Добро пожаловать в семью!"); err != nil {
 		return err
 	}
 
 	// Notify parents about new member
-	if user != nil {
-		roleName := "родитель"
-		if user.Role == string(domain.RoleChild) {
-			roleName = "ребёнок"
-		}
-		b.notifyParents(familyUID, c.Sender().ID,
-			fmt.Sprintf("👋 %s присоединился к семье (%s)", user.Name, roleName))
+	roleName := "родитель"
+	if invite.Role == string(domain.RoleChild) {
+		roleName = "ребёнок"
 	}
+	userName := extractName(c.Sender())
+	if user != nil {
+		userName = user.Name
+	}
+	b.notifyParents(invite.FamilyUID, c.Sender().ID,
+		fmt.Sprintf("👋 %s присоединился к семье (%s)", userName, roleName))
 
-	if user != nil && user.Role == string(domain.RoleChild) {
+	if invite.Role == string(domain.RoleChild) {
 		return b.showChildMenu(c)
 	}
 	return b.showParentMenu(c)

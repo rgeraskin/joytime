@@ -76,6 +76,7 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 		&models.Tasks{},
 		&models.Rewards{},
 		&models.Penalties{},
+		&models.Invites{},
 		&models.TokenHistory{},
 	)
 	if err != nil {
