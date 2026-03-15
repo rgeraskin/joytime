@@ -22,10 +22,10 @@ func (b *Bot) showChildMenu(c tele.Context) error {
 
 	kb := inlineKeyboard(
 		btnRow(
-			btn("Выполнить задание", "child_task_done"),
-			btn("Получить награду", "child_reward_claim"),
+			btn("✅ Выполнить", "child_task_done"),
+			btn("🎁 Награда", "child_reward_claim"),
 		),
-		btnRow(btn("Штрафы", "child_penalties")),
+		btnRow(btn("⚠️ Штрафы", "child_penalties")),
 	)
 	return c.Send(fmt.Sprintf("Твой баланс: %d 💎", tokens.Tokens), kb)
 }
@@ -48,8 +48,8 @@ func (b *Bot) showChildPenalties(c tele.Context) error {
 		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
 	}
 
-	msg := formatList("Штрафы", items)
-	return c.Send(msg, inlineKeyboard(btnRow(btn("Назад", "back_child"))))
+	msg := formatList("⚠️ Штрафы", items)
+	return c.Send(msg, inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))))
 }
 
 // --- Task completion (number grid → immediate action) ---
@@ -74,7 +74,7 @@ func (b *Bot) onTaskDonePrompt(c tele.Context) error {
 	}
 
 	if len(available) == 0 {
-		return c.Send("Нет доступных заданий", inlineKeyboard(btnRow(btn("Назад", "back_child"))))
+		return c.Send("Нет доступных заданий", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))))
 	}
 
 	items := make([]string, len(available))
@@ -82,9 +82,9 @@ func (b *Bot) onTaskDonePrompt(c tele.Context) error {
 		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
 	}
 
-	msg := formatList("Доступные задания", items)
+	msg := formatList("📋 Доступные задания", items)
 	grid := numberGrid(len(available), "pick_task_done")
-	grid = append(grid, btnRow(btn("Назад", "back_child")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "back_child")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -114,13 +114,13 @@ func (b *Bot) onTaskDonePick(c tele.Context, num int) error {
 	_, err = b.services.TaskService.CompleteTask(bgCtx(), auth, auth.FamilyUID, task.Name)
 	if err != nil {
 		if errors.Is(err, domain.ErrTaskNotAssignedToUser) {
-			return c.Send("Это задание назначено другому ребенку")
+			return c.Send("❌ Это задание назначено другому ребенку")
 		}
 		return b.internalError(c, "Error completing task", err)
 	}
 
 	if err := c.Send(fmt.Sprintf(
-		"Задание \"%s\" отмечено выполненным!\nПосле проверки родителем ты получишь %d 💎",
+		"✅ Задание \"%s\" отмечено выполненным!\nПосле проверки родителем ты получишь %d 💎",
 		task.Name, task.Tokens,
 	)); err != nil {
 		return err
@@ -133,7 +133,7 @@ func (b *Bot) onTaskDonePick(c tele.Context, num int) error {
 		childName = user.Name
 	}
 	b.notifyParents(auth.FamilyUID, c.Sender().ID,
-		fmt.Sprintf("%s выполнил задание: %s (%d 💎)", childName, task.Name, task.Tokens))
+		fmt.Sprintf("📋 %s выполнил задание: %s (%d 💎)", childName, task.Name, task.Tokens))
 
 	return b.showChildMenu(c)
 }
@@ -152,7 +152,7 @@ func (b *Bot) onRewardClaimPrompt(c tele.Context) error {
 	}
 
 	if len(rewards) == 0 {
-		return c.Send("Нет доступных наград", inlineKeyboard(btnRow(btn("Назад", "back_child"))))
+		return c.Send("Нет доступных наград", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))))
 	}
 
 	items := make([]string, len(rewards))
@@ -160,9 +160,9 @@ func (b *Bot) onRewardClaimPrompt(c tele.Context) error {
 		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
 	}
 
-	msg := formatList("Награды", items)
+	msg := formatList("🎁 Награды", items)
 	grid := numberGrid(len(rewards), "pick_reward_claim")
-	grid = append(grid, btnRow(btn("Назад", "back_child")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "back_child")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -185,12 +185,12 @@ func (b *Bot) onRewardClaimPick(c tele.Context, num int) error {
 	err = b.services.TokenService.ClaimReward(bgCtx(), auth, auth.FamilyUID, reward.Name)
 	if err != nil {
 		if errors.Is(err, domain.ErrInsufficientTokens) {
-			return c.Send("У тебя недостаточно 💎")
+			return c.Send("❌ У тебя недостаточно 💎")
 		}
 		return b.internalError(c, "Error claiming reward", err)
 	}
 
-	if err := c.Send(fmt.Sprintf("Награда \"%s\" получена!", reward.Name)); err != nil {
+	if err := c.Send(fmt.Sprintf("🎉 Награда \"%s\" получена!", reward.Name)); err != nil {
 		return err
 	}
 
@@ -201,7 +201,7 @@ func (b *Bot) onRewardClaimPick(c tele.Context, num int) error {
 		childName = user.Name
 	}
 	b.notifyParents(auth.FamilyUID, c.Sender().ID,
-		fmt.Sprintf("%s получил награду: %s (%d 💎)", childName, reward.Name, reward.Tokens))
+		fmt.Sprintf("🎁 %s получил награду: %s (%d 💎)", childName, reward.Name, reward.Tokens))
 
 	return b.showChildMenu(c)
 }

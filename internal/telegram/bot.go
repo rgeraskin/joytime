@@ -250,7 +250,7 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.internalError(c, "Error finding user", err)
 	}
 	if user == nil {
-		return c.Send("Для начала нажми /start")
+		return c.Send("❌ Для начала нажми /start")
 	}
 
 	text := strings.TrimSpace(c.Text())
@@ -299,7 +299,7 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.onManualAdjustTokens(c, text, inputCtx)
 	}
 
-	return c.Send("Не понимаю. Нажми /start для начала")
+	return c.Send("❌ Не понимаю. Нажми /start для начала")
 }
 
 // --- Helpers ---
@@ -350,15 +350,15 @@ func (b *Bot) setState(tgID int64, state, inputCtx string) error {
 
 func (b *Bot) internalError(c tele.Context, msg string, err error) error {
 	b.logger.Error(msg, "error", err, "tg_id", c.Sender().ID)
-	return c.Send("Внутренняя ошибка. Попробуй /start")
+	return c.Send("❌ Внутренняя ошибка. Попробуй /start")
 }
 
 func parentMenuKeyboard() *tele.ReplyMarkup {
-	return inlineKeyboard(btnRow(btn("Меню", "back_parent")))
+	return inlineKeyboard(btnRow(btn("📌 Меню", "back_parent")))
 }
 
 func childMenuKeyboard() *tele.ReplyMarkup {
-	return inlineKeyboard(btnRow(btn("Меню", "back_child")))
+	return inlineKeyboard(btnRow(btn("📌 Меню", "back_child")))
 }
 
 func (b *Bot) notifyParents(familyUID string, excludeTgID int64, message string) {

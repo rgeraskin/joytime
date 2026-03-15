@@ -49,13 +49,13 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 	}
 
 	rows := [][]tele.InlineButton{
-		btnRow(btn("Задания", "parent_tasks"), btn("Награды", "parent_rewards")),
-		btnRow(btn("Штрафы", "parent_penalties"), btn("Коррекция", "manual_adjust")),
+		btnRow(btn("📋 Задания", "parent_tasks"), btn("🎁 Награды", "parent_rewards")),
+		btnRow(btn("⚠️ Штрафы", "parent_penalties"), btn("🔧 Коррекция", "manual_adjust")),
 	}
 	if pendingCount > 0 {
 		rows = append(
 			[][]tele.InlineButton{
-				btnRow(btn(fmt.Sprintf("Проверить (%d)", pendingCount), "parent_review")),
+				btnRow(btn(fmt.Sprintf("🔍 Проверить (%d)", pendingCount), "parent_review")),
 			},
 			rows...,
 		)
@@ -82,11 +82,11 @@ func (b *Bot) showTasks(c tele.Context) error {
 		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
 	}
 
-	msg := formatList("Задания", items)
+	msg := formatList("📋 Задания", items)
 	kb := inlineKeyboard(
-		btnRow(btn("Добавить", "task_add"), btn("Добавить списком", "task_add_bulk")),
-		btnRow(btn("Удалить", "task_delete"), btn("Изменить цену", "task_edit")),
-		btnRow(btn("Назад", "back_parent")),
+		btnRow(btn("➕ Добавить", "task_add"), btn("📝 Списком", "task_add_bulk")),
+		btnRow(btn("🗑 Удалить", "task_delete"), btn("✏️ Изменить", "task_edit")),
+		btnRow(btn("⬅️ Назад", "back_parent")),
 	)
 	return c.Send(msg, kb)
 }
@@ -95,20 +95,20 @@ func (b *Bot) onAddTaskPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddTaskName, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи название задания")
+	return c.Send("✏️ Введи название задания")
 }
 
 func (b *Bot) onAddTaskName(c tele.Context, name string) error {
 	if err := b.setState(c.Sender().ID, stateAddTaskTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Сколько токенов за это задание?")
+	return c.Send("💰 Сколько токенов за это задание?")
 }
 
 func (b *Bot) onAddTaskTokens(c tele.Context, text, taskName string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 
 	auth, err := b.authCtx(c.Sender().ID)
@@ -128,17 +128,17 @@ func (b *Bot) onAddTaskTokens(c tele.Context, text, taskName string) error {
 			return c.Send(err.Error())
 		}
 		if isDuplicateKey(err) {
-			return c.Send("Задание с таким именем уже существует")
+			return c.Send("❌ Задание с таким именем уже существует")
 		}
 		return b.internalError(c, "Error creating task", err)
 	}
 
 	b.clearState(c.Sender().ID)
-	if err := c.Send("Задание добавлено!"); err != nil {
+	if err := c.Send("✅ Задание добавлено!"); err != nil {
 		return err
 	}
 
-	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Новое задание: %s (%d 💎)", taskName, tokens))
+	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("📋 Новое задание: %s (%d 💎)", taskName, tokens))
 
 	return b.showTasks(c)
 }
@@ -227,7 +227,7 @@ func (b *Bot) onAddTaskBulk(c tele.Context, text string) error {
 	}
 
 	if len(added) > 0 {
-		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Добавлено %d новых заданий", len(added)))
+		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("📋 Добавлено %d новых заданий", len(added)))
 	}
 
 	return b.showTasks(c)
@@ -247,7 +247,7 @@ func (b *Bot) onEditTaskPrompt(c tele.Context) error {
 	}
 
 	if len(tasks) == 0 {
-		return c.Send("Нет заданий", inlineKeyboard(btnRow(btn("Назад", "parent_tasks"))))
+		return c.Send("Нет заданий", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_tasks"))))
 	}
 
 	items := make([]string, len(tasks))
@@ -257,7 +257,7 @@ func (b *Bot) onEditTaskPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери задание для изменения", items)
 	grid := numberGrid(len(tasks), "pick_edit_task")
-	grid = append(grid, btnRow(btn("Назад", "parent_tasks")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_tasks")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -280,13 +280,13 @@ func (b *Bot) onEditTaskPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateEditTaskTokens, taskName); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("Задание: %s\nСколько токенов за это задание?", taskName))
+	return c.Send(fmt.Sprintf("📋 Задание: %s\n💰 Сколько токенов за это задание?", taskName))
 }
 
 func (b *Bot) onEditTaskTokens(c tele.Context, text, taskName string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 
 	auth, err := b.authCtx(c.Sender().ID)
@@ -300,7 +300,7 @@ func (b *Bot) onEditTaskTokens(c tele.Context, text, taskName string) error {
 	}
 
 	b.clearState(c.Sender().ID)
-	if err := c.Send("Задание изменено!"); err != nil {
+	if err := c.Send("✅ Задание изменено!"); err != nil {
 		return err
 	}
 	return b.showTasks(c)
@@ -320,7 +320,7 @@ func (b *Bot) onDeleteTaskPrompt(c tele.Context) error {
 	}
 
 	if len(tasks) == 0 {
-		return c.Send("Нет заданий", inlineKeyboard(btnRow(btn("Назад", "parent_tasks"))))
+		return c.Send("Нет заданий", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_tasks"))))
 	}
 
 	items := make([]string, len(tasks))
@@ -330,7 +330,7 @@ func (b *Bot) onDeleteTaskPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери задание для удаления", items)
 	grid := numberGrid(len(tasks), "pick_del_task")
-	grid = append(grid, btnRow(btn("Назад", "parent_tasks")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_tasks")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -354,7 +354,7 @@ func (b *Bot) onDeleteTaskPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error deleting task", err)
 	}
 
-	if err := c.Send("Задание удалено!"); err != nil {
+	if err := c.Send("✅ Задание удалено!"); err != nil {
 		return err
 	}
 	return b.showTasks(c)
@@ -378,11 +378,11 @@ func (b *Bot) showRewards(c tele.Context) error {
 		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
 	}
 
-	msg := formatList("Награды", items)
+	msg := formatList("🎁 Награды", items)
 	kb := inlineKeyboard(
-		btnRow(btn("Добавить", "reward_add"), btn("Добавить списком", "reward_add_bulk")),
-		btnRow(btn("Удалить", "reward_delete"), btn("Изменить цену", "reward_edit")),
-		btnRow(btn("Назад", "back_parent")),
+		btnRow(btn("➕ Добавить", "reward_add"), btn("📝 Списком", "reward_add_bulk")),
+		btnRow(btn("🗑 Удалить", "reward_delete"), btn("✏️ Изменить", "reward_edit")),
+		btnRow(btn("⬅️ Назад", "back_parent")),
 	)
 	return c.Send(msg, kb)
 }
@@ -391,20 +391,20 @@ func (b *Bot) onAddRewardPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddRewardName, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи название награды")
+	return c.Send("✏️ Введи название награды")
 }
 
 func (b *Bot) onAddRewardName(c tele.Context, name string) error {
 	if err := b.setState(c.Sender().ID, stateAddRewardTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Сколько токенов стоит награда?")
+	return c.Send("💰 Сколько токенов стоит награда?")
 }
 
 func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 
 	auth, err := b.authCtx(c.Sender().ID)
@@ -424,17 +424,17 @@ func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 			return c.Send(err.Error())
 		}
 		if isDuplicateKey(err) {
-			return c.Send("Награда с таким именем уже существует")
+			return c.Send("❌ Награда с таким именем уже существует")
 		}
 		return b.internalError(c, "Error creating reward", err)
 	}
 
 	b.clearState(c.Sender().ID)
-	if err := c.Send("Награда добавлена!"); err != nil {
+	if err := c.Send("✅ Награда добавлена!"); err != nil {
 		return err
 	}
 
-	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Новая награда: %s (%d 💎)", rewardName, tokens))
+	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("🎁 Новая награда: %s (%d 💎)", rewardName, tokens))
 
 	return b.showRewards(c)
 }
@@ -523,7 +523,7 @@ func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
 	}
 
 	if len(added) > 0 {
-		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("Добавлено %d новых наград", len(added)))
+		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("🎁 Добавлено %d новых наград", len(added)))
 	}
 
 	return b.showRewards(c)
@@ -543,7 +543,7 @@ func (b *Bot) onEditRewardPrompt(c tele.Context) error {
 	}
 
 	if len(rewards) == 0 {
-		return c.Send("Нет наград", inlineKeyboard(btnRow(btn("Назад", "parent_rewards"))))
+		return c.Send("Нет наград", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_rewards"))))
 	}
 
 	items := make([]string, len(rewards))
@@ -553,7 +553,7 @@ func (b *Bot) onEditRewardPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери награду для изменения", items)
 	grid := numberGrid(len(rewards), "pick_edit_reward")
-	grid = append(grid, btnRow(btn("Назад", "parent_rewards")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_rewards")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -576,13 +576,13 @@ func (b *Bot) onEditRewardPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateEditRewardTokens, rewardName); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("Награда: %s\nСколько токенов стоит награда?", rewardName))
+	return c.Send(fmt.Sprintf("🎁 Награда: %s\n💰 Сколько токенов стоит награда?", rewardName))
 }
 
 func (b *Bot) onEditRewardTokens(c tele.Context, text, rewardName string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 
 	auth, err := b.authCtx(c.Sender().ID)
@@ -596,7 +596,7 @@ func (b *Bot) onEditRewardTokens(c tele.Context, text, rewardName string) error 
 	}
 
 	b.clearState(c.Sender().ID)
-	if err := c.Send("Награда изменена!"); err != nil {
+	if err := c.Send("✅ Награда изменена!"); err != nil {
 		return err
 	}
 	return b.showRewards(c)
@@ -616,7 +616,7 @@ func (b *Bot) onDeleteRewardPrompt(c tele.Context) error {
 	}
 
 	if len(rewards) == 0 {
-		return c.Send("Нет наград", inlineKeyboard(btnRow(btn("Назад", "parent_rewards"))))
+		return c.Send("Нет наград", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_rewards"))))
 	}
 
 	items := make([]string, len(rewards))
@@ -626,7 +626,7 @@ func (b *Bot) onDeleteRewardPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери награду для удаления", items)
 	grid := numberGrid(len(rewards), "pick_del_reward")
-	grid = append(grid, btnRow(btn("Назад", "parent_rewards")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_rewards")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -650,7 +650,7 @@ func (b *Bot) onDeleteRewardPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error deleting reward", err)
 	}
 
-	if err := c.Send("Награда удалена!"); err != nil {
+	if err := c.Send("✅ Награда удалена!"); err != nil {
 		return err
 	}
 	return b.showRewards(c)
@@ -674,11 +674,11 @@ func (b *Bot) showPenalties(c tele.Context) error {
 		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
 	}
 
-	msg := formatList("Штрафы", items)
+	msg := formatList("⚠️ Штрафы", items)
 	kb := inlineKeyboard(
-		btnRow(btn("Добавить", "penalty_add"), btn("Добавить списком", "penalty_add_bulk")),
-		btnRow(btn("Удалить", "penalty_delete"), btn("Изменить цену", "penalty_edit")),
-		btnRow(btn("Применить", "penalty_apply"), btn("Назад", "back_parent")),
+		btnRow(btn("➕ Добавить", "penalty_add"), btn("📝 Списком", "penalty_add_bulk")),
+		btnRow(btn("🗑 Удалить", "penalty_delete"), btn("✏️ Изменить", "penalty_edit")),
+		btnRow(btn("⚡ Применить", "penalty_apply"), btn("⬅️ Назад", "back_parent")),
 	)
 	return c.Send(msg, kb)
 }
@@ -687,20 +687,20 @@ func (b *Bot) onAddPenaltyPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateAddPenaltyName, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи название штрафа")
+	return c.Send("✏️ Введи название штрафа")
 }
 
 func (b *Bot) onAddPenaltyName(c tele.Context, name string) error {
 	if err := b.setState(c.Sender().ID, stateAddPenaltyTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Сколько токенов снимать за этот штраф?")
+	return c.Send("💰 Сколько токенов снимать за этот штраф?")
 }
 
 func (b *Bot) onAddPenaltyTokens(c tele.Context, text, penaltyName string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 
 	auth, err := b.authCtx(c.Sender().ID)
@@ -717,13 +717,13 @@ func (b *Bot) onAddPenaltyTokens(c tele.Context, text, penaltyName string) error
 	}
 	if err := b.services.PenaltyService.CreatePenalty(bgCtx(), auth, penalty); err != nil {
 		if isDuplicateKey(err) {
-			return c.Send("Штраф с таким именем уже существует")
+			return c.Send("❌ Штраф с таким именем уже существует")
 		}
 		return b.internalError(c, "Error creating penalty", err)
 	}
 
 	b.clearState(c.Sender().ID)
-	if err := c.Send("Штраф добавлен!"); err != nil {
+	if err := c.Send("✅ Штраф добавлен!"); err != nil {
 		return err
 	}
 	return b.showPenalties(c)
@@ -828,7 +828,7 @@ func (b *Bot) onEditPenaltyPrompt(c tele.Context) error {
 	}
 
 	if len(penalties) == 0 {
-		return c.Send("Нет штрафов", inlineKeyboard(btnRow(btn("Назад", "parent_penalties"))))
+		return c.Send("Нет штрафов", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_penalties"))))
 	}
 
 	items := make([]string, len(penalties))
@@ -838,7 +838,7 @@ func (b *Bot) onEditPenaltyPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери штраф для изменения", items)
 	grid := numberGrid(len(penalties), "pick_edit_penalty")
-	grid = append(grid, btnRow(btn("Назад", "parent_penalties")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_penalties")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -861,13 +861,13 @@ func (b *Bot) onEditPenaltyPick(c tele.Context, num int) error {
 	if err := b.setState(c.Sender().ID, stateEditPenaltyTokens, penaltyName); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send(fmt.Sprintf("Штраф: %s\nСколько токенов снимать?", penaltyName))
+	return c.Send(fmt.Sprintf("⚠️ Штраф: %s\n💰 Сколько токенов снимать?", penaltyName))
 }
 
 func (b *Bot) onEditPenaltyTokens(c tele.Context, text, penaltyName string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 
 	auth, err := b.authCtx(c.Sender().ID)
@@ -881,7 +881,7 @@ func (b *Bot) onEditPenaltyTokens(c tele.Context, text, penaltyName string) erro
 	}
 
 	b.clearState(c.Sender().ID)
-	if err := c.Send("Штраф изменен!"); err != nil {
+	if err := c.Send("✅ Штраф изменен!"); err != nil {
 		return err
 	}
 	return b.showPenalties(c)
@@ -901,7 +901,7 @@ func (b *Bot) onDeletePenaltyPrompt(c tele.Context) error {
 	}
 
 	if len(penalties) == 0 {
-		return c.Send("Нет штрафов", inlineKeyboard(btnRow(btn("Назад", "parent_penalties"))))
+		return c.Send("Нет штрафов", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_penalties"))))
 	}
 
 	items := make([]string, len(penalties))
@@ -911,7 +911,7 @@ func (b *Bot) onDeletePenaltyPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери штраф для удаления", items)
 	grid := numberGrid(len(penalties), "pick_del_penalty")
-	grid = append(grid, btnRow(btn("Назад", "parent_penalties")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_penalties")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -935,7 +935,7 @@ func (b *Bot) onDeletePenaltyPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error deleting penalty", err)
 	}
 
-	if err := c.Send("Штраф удален!"); err != nil {
+	if err := c.Send("✅ Штраф удален!"); err != nil {
 		return err
 	}
 	return b.showPenalties(c)
@@ -955,7 +955,7 @@ func (b *Bot) onApplyPenaltyPrompt(c tele.Context) error {
 	}
 
 	if len(penalties) == 0 {
-		return c.Send("Нет штрафов", inlineKeyboard(btnRow(btn("Назад", "parent_penalties"))))
+		return c.Send("Нет штрафов", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_penalties"))))
 	}
 
 	items := make([]string, len(penalties))
@@ -965,7 +965,7 @@ func (b *Bot) onApplyPenaltyPrompt(c tele.Context) error {
 
 	msg := formatList("Выбери штраф для применения", items)
 	grid := numberGrid(len(penalties), "pick_apply_penalty")
-	grid = append(grid, btnRow(btn("Назад", "parent_penalties")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_penalties")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -993,7 +993,7 @@ func (b *Bot) onApplyPenaltyPick(c tele.Context, num int) error {
 	}
 
 	if len(children) == 0 {
-		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("Назад", "parent_penalties"))))
+		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("⬅️ Назад", "parent_penalties"))))
 	}
 
 	// If only one child, apply directly
@@ -1013,7 +1013,7 @@ func (b *Bot) onApplyPenaltyPick(c tele.Context, num int) error {
 
 	msg := formatList("Кому применить штраф", items)
 	grid := numberGrid(len(children), "pick_penalty_child")
-	grid = append(grid, btnRow(btn("Назад", "parent_penalties")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "parent_penalties")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -1056,13 +1056,13 @@ func (b *Bot) applyPenalty(c tele.Context, auth *domain.AuthContext, penaltyName
 		return b.internalError(c, "Error applying penalty", err)
 	}
 
-	if err := c.Send(fmt.Sprintf("Штраф \"%s\" (%d 💎) применен к %s", penalty.Name, penalty.Tokens, child.Name)); err != nil {
+	if err := c.Send(fmt.Sprintf("✅ Штраф \"%s\" (%d 💎) применен к %s", penalty.Name, penalty.Tokens, child.Name)); err != nil {
 		return err
 	}
 
 	// Notify child
 	b.notifyChild(child.UserID,
-		fmt.Sprintf("Штраф: %s (-%d 💎)", penalty.Name, penalty.Tokens))
+		fmt.Sprintf("⚠️ Штраф: %s (-%d 💎)", penalty.Name, penalty.Tokens))
 
 	return b.showParentMenu(c)
 }
@@ -1081,7 +1081,7 @@ func (b *Bot) onManualAdjustPrompt(c tele.Context) error {
 	}
 
 	if len(children) == 0 {
-		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("Назад", "back_parent"))))
+		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
 	}
 
 	// Single child — go straight to reason prompt
@@ -1097,7 +1097,7 @@ func (b *Bot) onManualAdjustPrompt(c tele.Context) error {
 
 	msg := formatList("Кому скорректировать токены", items)
 	grid := numberGrid(len(children), "pick_manual_child")
-	grid = append(grid, btnRow(btn("Назад", "back_parent")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "back_parent")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -1123,7 +1123,7 @@ func (b *Bot) startManualAdjust(c tele.Context, childUserID string) error {
 	if err := b.setState(c.Sender().ID, stateManualAdjustReason, childUserID); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи причину коррекции")
+	return c.Send("✏️ Введи причину коррекции")
 }
 
 func (b *Bot) onManualAdjustReason(c tele.Context, reason, childUserID string) error {
@@ -1132,13 +1132,13 @@ func (b *Bot) onManualAdjustReason(c tele.Context, reason, childUserID string) e
 	if err := b.setState(c.Sender().ID, stateManualAdjustTokens, ctx); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Сколько токенов? (положительное — добавить, отрицательное — снять)")
+	return c.Send("💰 Сколько токенов? (положительное — добавить, отрицательное — снять)")
 }
 
 func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error {
 	tokens, err := parseNumber(text)
 	if err != nil {
-		return c.Send("Количество токенов должно быть числом")
+		return c.Send("❌ Количество токенов должно быть числом")
 	}
 	if tokens == 0 {
 		return c.Send("Количество токенов не может быть 0")
@@ -1180,13 +1180,13 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 	if tokens < 0 {
 		sign = ""
 	}
-	if err := c.Send(fmt.Sprintf("Коррекция: %s%d 💎 для %s\nПричина: %s", sign, tokens, childName, reason)); err != nil {
+	if err := c.Send(fmt.Sprintf("✅ Коррекция: %s%d 💎 для %s\nПричина: %s", sign, tokens, childName, reason)); err != nil {
 		return err
 	}
 
 	// Notify child
 	b.notifyChild(childUserID,
-		fmt.Sprintf("Коррекция: %s%d 💎\nПричина: %s", sign, tokens, reason))
+		fmt.Sprintf("🔧 Коррекция: %s%d 💎\nПричина: %s", sign, tokens, reason))
 
 	return b.showParentMenu(c)
 }
@@ -1212,7 +1212,7 @@ func (b *Bot) showPendingReview(c tele.Context) error {
 	}
 
 	if len(pending) == 0 {
-		return c.Send("Нет заданий для проверки", inlineKeyboard(btnRow(btn("Назад", "back_parent"))))
+		return c.Send("Нет заданий для проверки", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
 	}
 
 	items := make([]string, len(pending))
@@ -1227,7 +1227,7 @@ func (b *Bot) showPendingReview(c tele.Context) error {
 
 	msg := formatList("Задания на проверку", items)
 	grid := numberGrid(len(pending), "pick_review")
-	grid = append(grid, btnRow(btn("Назад", "back_parent")))
+	grid = append(grid, btnRow(btn("⬅️ Назад", "back_parent")))
 	return c.Send(msg, inlineKeyboard(grid...))
 }
 
@@ -1268,10 +1268,10 @@ func (b *Bot) onReviewTaskPick(c tele.Context, num int) error {
 	msg := fmt.Sprintf("Задание: %s\nТокены: %d 💎\nВыполнил: %s", task.Name, task.Tokens, childName)
 	kb := inlineKeyboard(
 		btnRow(
-			btn("Подтвердить", "review_approve"),
-			btn("Отклонить", "review_reject"),
+			btn("✅ Подтвердить", "review_approve"),
+			btn("❌ Отклонить", "review_reject"),
 		),
-		btnRow(btn("Назад", "parent_review")),
+		btnRow(btn("⬅️ Назад", "parent_review")),
 	)
 	return c.Send(msg, kb)
 }
@@ -1306,14 +1306,14 @@ func (b *Bot) onReviewApprove(c tele.Context) error {
 		return b.internalError(c, "Error completing task", err)
 	}
 
-	if err := c.Send(fmt.Sprintf("Задание \"%s\" подтверждено! %d 💎 начислено", task.Name, task.Tokens)); err != nil {
+	if err := c.Send(fmt.Sprintf("✅ Задание \"%s\" подтверждено! %d 💎 начислено", task.Name, task.Tokens)); err != nil {
 		return err
 	}
 
 	// Notify the child
 	if assignedChildID != "" {
 		b.notifyChild(assignedChildID,
-			fmt.Sprintf("Задание \"%s\" подтверждено! Ты получил %d 💎", task.Name, task.Tokens))
+			fmt.Sprintf("✅ Задание \"%s\" подтверждено! Ты получил %d 💎", task.Name, task.Tokens))
 	}
 
 	return b.showParentMenu(c)
@@ -1348,14 +1348,14 @@ func (b *Bot) onReviewReject(c tele.Context) error {
 		return b.internalError(c, "Error rejecting task", err)
 	}
 
-	if err := c.Send(fmt.Sprintf("Задание \"%s\" отклонено", task.Name)); err != nil {
+	if err := c.Send(fmt.Sprintf("❌ Задание \"%s\" отклонено", task.Name)); err != nil {
 		return err
 	}
 
 	// Notify the child
 	if assignedChildID != "" {
 		b.notifyChild(assignedChildID,
-			fmt.Sprintf("Задание \"%s\" отклонено. Попробуй еще раз!", task.Name))
+			fmt.Sprintf("❌ Задание \"%s\" отклонено. Попробуй еще раз!", task.Name))
 	}
 
 	return b.showParentMenu(c)

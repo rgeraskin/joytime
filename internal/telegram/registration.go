@@ -19,7 +19,7 @@ func (b *Bot) showRoleSelection(c tele.Context) error {
 		),
 	)
 	return c.Send(
-		fmt.Sprintf("Привет, %s! Кто ты?", name),
+		fmt.Sprintf("👋 Привет, %s! Кто ты?", name),
 		kb,
 	)
 }
@@ -39,7 +39,7 @@ func (b *Bot) showFamilySetup(c tele.Context, role string) error {
 	if err := b.setState(c.Sender().ID, stateJoinFamily, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Попроси родителей дать тебе код семьи и введи его здесь")
+	return c.Send("✏️ Попроси родителей дать тебе код семьи и введи его здесь")
 }
 
 func (b *Bot) onSelectRole(c tele.Context, role string) error {
@@ -70,7 +70,7 @@ func (b *Bot) onFamilyCreate(c tele.Context) error {
 	}
 
 	if err := c.Send(fmt.Sprintf(
-		"Семья создана\\! Код: `%s`\n\nЕго нужно будет ввести остальным членам семьи",
+		"🎉 Семья создана\\! Код: `%s`\n\nЕго нужно будет ввести остальным членам семьи",
 		family.UID,
 	), tele.ModeMarkdownV2); err != nil {
 		return err
@@ -82,7 +82,7 @@ func (b *Bot) onFamilyJoinPrompt(c tele.Context) error {
 	if err := b.setState(c.Sender().ID, stateJoinFamily, ""); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
-	return c.Send("Введи код семьи")
+	return c.Send("✏️ Введи код семьи")
 }
 
 func (b *Bot) onFamilyJoinText(c tele.Context, familyUID string) error {
@@ -93,7 +93,7 @@ func (b *Bot) onFamilyJoinText(c tele.Context, familyUID string) error {
 			if err := b.setState(c.Sender().ID, stateJoinFamily, ""); err != nil {
 				return b.internalError(c, "Error setting state", err)
 			}
-			return c.Send("Семья с таким кодом не найдена. Проверь код и попробуй еще раз")
+			return c.Send("❌ Семья с таким кодом не найдена. Проверь код и попробуй еще раз")
 		}
 		return b.internalError(c, "Error finding family", err)
 	}
@@ -104,7 +104,7 @@ func (b *Bot) onFamilyJoinText(c tele.Context, familyUID string) error {
 
 	user, _ := b.findUser(c.Sender().ID)
 
-	if err := c.Send("Добро пожаловать в семью!"); err != nil {
+	if err := c.Send("🎉 Добро пожаловать в семью!"); err != nil {
 		return err
 	}
 
@@ -115,7 +115,7 @@ func (b *Bot) onFamilyJoinText(c tele.Context, familyUID string) error {
 			roleName = "ребёнок"
 		}
 		b.notifyParents(familyUID, c.Sender().ID,
-			fmt.Sprintf("%s присоединился к семье (%s)", user.Name, roleName))
+			fmt.Sprintf("👋 %s присоединился к семье (%s)", user.Name, roleName))
 	}
 
 	if user != nil && user.Role == string(domain.RoleChild) {
