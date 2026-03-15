@@ -19,7 +19,10 @@ func (b *Bot) showWelcome(c tele.Context) error {
 		),
 	)
 	return c.Send(
-		fmt.Sprintf("👋 Привет, %s!\n\nСоздай семью или введи код приглашения.", name),
+		fmt.Sprintf(
+			"👋 Привет, %s!\n\nJoyTime — семейный бот с заданиями и наградами. Дети выполняют задания, получают токены 💎 и обменивают их на награды.\n\nСоздай семью или введи код приглашения.",
+			name,
+		),
 		kb,
 	)
 }
@@ -98,7 +101,13 @@ func (b *Bot) onInviteJoinText(c tele.Context, code string) error {
 
 	b.clearState(c.Sender().ID)
 
-	if err := c.Send("🎉 Добро пожаловать в семью!"); err != nil {
+	welcomeMsg := "🎉 Добро пожаловать в семью!"
+	if invite.Role == string(domain.RoleChild) {
+		welcomeMsg += "\n\nВыполняй задания, получай токены 💎 и обменивай их на награды. Выполненные задания проверяет родитель."
+	} else {
+		welcomeMsg += "\n\nДобавляй задания и награды, проверяй выполнение и управляй семьей через меню."
+	}
+	if err := c.Send(welcomeMsg); err != nil {
 		return err
 	}
 
