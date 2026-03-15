@@ -157,7 +157,11 @@ func (s *UserService) DeleteUser(
 		return ErrCannotDeleteSelf
 	}
 
-	return s.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.Users{}).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx.Where("user_id = ?", userID).Delete(&models.TokenHistory{})
+		tx.Where("user_id = ?", userID).Delete(&models.Tokens{})
+		return tx.Where("user_id = ?", userID).Delete(&models.Users{}).Error
+	})
 }
 
 // FindUser retrieves a user by ID without authorization checks.
