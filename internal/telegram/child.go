@@ -25,9 +25,26 @@ func (b *Bot) showChildMenu(c tele.Context) error {
 			btn("✅ Выполнить", "child_task_done"),
 			btn("🎁 Награда", "child_reward_claim"),
 		),
-		btnRow(btn("⚠️ Штрафы", "child_penalties")),
+		btnRow(btn("⚠️ Штрафы", "child_penalties"), btn("📜 История", "child_history")),
 	)
 	return c.Send(fmt.Sprintf("Твой баланс: %d 💎", tokens.Tokens), kb)
+}
+
+// --- History ---
+
+func (b *Bot) showChildHistory(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	history, err := b.services.TokenService.GetTokenHistory(bgCtx(), auth, auth.UserID)
+	if err != nil {
+		return b.internalError(c, "Error getting history", err)
+	}
+
+	msg := formatHistory("", history, 20)
+	return c.Send(msg, inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))))
 }
 
 // --- Penalties (read-only) ---

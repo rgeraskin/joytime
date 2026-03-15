@@ -51,7 +51,7 @@ func (b *Bot) showParentMenu(c tele.Context) error {
 	rows := [][]tele.InlineButton{
 		btnRow(btn("📋 Задания", "parent_tasks"), btn("🎁 Награды", "parent_rewards")),
 		btnRow(btn("⚠️ Штрафы", "parent_penalties"), btn("🔧 Коррекция", "manual_adjust")),
-		btnRow(btn("👨‍👩‍👧‍👦 Семья", "parent_family")),
+		btnRow(btn("👨‍👩‍👧‍👦 Семья", "parent_family"), btn("📜 История", "parent_history")),
 	}
 	if pendingCount > 0 {
 		rows = append(
@@ -1066,6 +1066,68 @@ func (b *Bot) applyPenalty(c tele.Context, auth *domain.AuthContext, penaltyName
 		fmt.Sprintf("⚠️ Штраф: %s (-%d 💎)", penalty.Name, penalty.Tokens))
 
 	return b.showParentMenu(c)
+}
+
+// --- Token History (parent) ---
+
+func (b *Bot) showParentHistoryPrompt(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	if err != nil {
+		return b.internalError(c, "Error getting children", err)
+	}
+
+	if len(children) == 0 {
+		return c.Send("Нет детей в семье", inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
+	}
+
+	// Single child — go directly
+	if len(children) == 1 {
+		return b.showHistoryForChild(c, auth, children[0])
+	}
+
+	// Multiple children — show picker
+	items := make([]string, len(children))
+	for i, ch := range children {
+		items[i] = ch.Name
+	}
+
+	msg := formatList("Чью историю показать", items)
+	grid := numberGrid(len(children), "pick_history_child")
+	grid = append(grid, btnRow(btn("⬅️ Назад", "back_parent")))
+	return c.Send(msg, inlineKeyboard(grid...))
+}
+
+func (b *Bot) onHistoryChildPick(c tele.Context, num int) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	children, err := b.services.UserService.FindFamilyUsersByRole(bgCtx(), auth.FamilyUID, string(domain.RoleChild))
+	if err != nil {
+		return b.internalError(c, "Error getting children", err)
+	}
+
+	if num < 1 || num > len(children) {
+		return c.Send("❌ Неверный номер")
+	}
+
+	return b.showHistoryForChild(c, auth, children[num-1])
+}
+
+func (b *Bot) showHistoryForChild(c tele.Context, auth *domain.AuthContext, child models.Users) error {
+	history, err := b.services.TokenService.GetTokenHistory(bgCtx(), auth, child.UserID)
+	if err != nil {
+		return b.internalError(c, "Error getting history", err)
+	}
+
+	msg := formatHistory(child.Name, history, 20)
+	return c.Send(msg, inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
 }
 
 // --- Family management ---

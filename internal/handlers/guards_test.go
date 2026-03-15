@@ -275,6 +275,64 @@ func TestRewardClaimHTTP(t *testing.T) {
 	})
 }
 
+func TestTokenHistoryAccess(t *testing.T) {
+	setupTestDB(t)
+	family, parent, child, _ := setupServiceTestData(t)
+
+	parentCtx := &domain.AuthContext{
+		UserID:    parent.UserID,
+		UserRole:  domain.RoleParent,
+		FamilyUID: family.UID,
+	}
+	childCtx := &domain.AuthContext{
+		UserID:    child.UserID,
+		UserRole:  domain.RoleChild,
+		FamilyUID: family.UID,
+	}
+
+	// Child already has 50 tokens from setup, but no history entry was created
+	// Add tokens via service to create history
+	err := testHandler.services.TokenService.AddTokensToUser(
+		context.Background(), parentCtx, child.UserID,
+		50, domain.TokenTypeManualAdjustment, "Initial bonus", nil, nil,
+	)
+	require.NoError(t, err)
+
+	t.Run("Child can read own history", func(t *testing.T) {
+		history, err := testHandler.services.TokenService.GetTokenHistory(context.Background(), childCtx, child.UserID)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(history), 1)
+		assert.Equal(t, 50, history[0].Amount)
+		assert.Equal(t, domain.TokenTypeManualAdjustment, history[0].Type)
+	})
+
+	t.Run("Parent can read child history", func(t *testing.T) {
+		history, err := testHandler.services.TokenService.GetTokenHistory(context.Background(), parentCtx, child.UserID)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(history), 1)
+	})
+
+	t.Run("Child cannot read other user history", func(t *testing.T) {
+		_, err := testHandler.services.TokenService.GetTokenHistory(context.Background(), childCtx, parent.UserID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthorized")
+	})
+
+	t.Run("History ordered by created_at DESC", func(t *testing.T) {
+		// Add more tokens to create a second entry
+		err := testHandler.services.TokenService.AddTokensToUser(
+			context.Background(), parentCtx, child.UserID,
+			10, domain.TokenTypeManualAdjustment, "Second bonus", nil, nil,
+		)
+		require.NoError(t, err)
+
+		history, err := testHandler.services.TokenService.GetTokenHistory(context.Background(), parentCtx, child.UserID)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(history), 2)
+		assert.True(t, history[0].CreatedAt.After(history[1].CreatedAt) || history[0].CreatedAt.Equal(history[1].CreatedAt))
+	})
+}
+
 func TestFamilyMemberManagement(t *testing.T) {
 	setupTestDB(t)
 	family, parent, child, _ := setupServiceTestData(t)

@@ -170,6 +170,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 			return b.onRenameMemberPick(c, num)
 		case "pick_delete_member":
 			return b.onDeleteMemberPick(c, num)
+		case "pick_history_child":
+			return b.onHistoryChildPick(c, num)
 		}
 	}
 
@@ -234,6 +236,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return b.onManualAdjustPrompt(c)
 	case "parent_family":
 		return b.showFamilyMembers(c)
+	case "parent_history":
+		return b.showParentHistoryPrompt(c)
 	case "family_rename":
 		return b.onRenameMemberPrompt(c)
 	case "family_delete":
@@ -242,6 +246,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	// Child actions
 	case "child_penalties":
 		return b.showChildPenalties(c)
+	case "child_history":
+		return b.showChildHistory(c)
 	case "child_task_done":
 		return b.onTaskDonePrompt(c)
 	case "child_reward_claim":
@@ -426,6 +432,31 @@ func formatList(header string, items []string) string {
 	}
 	for i, item := range items {
 		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, item))
+	}
+	return sb.String()
+}
+
+func formatHistory(prefix string, history []models.TokenHistory, limit int) string {
+	var sb strings.Builder
+	if prefix != "" {
+		sb.WriteString(prefix + "\n\n")
+	}
+	sb.WriteString("📜 История:\n\n")
+	if len(history) == 0 {
+		sb.WriteString("Пока пусто 😔")
+		return sb.String()
+	}
+	count := len(history)
+	if limit > 0 && count > limit {
+		count = limit
+	}
+	for i := 0; i < count; i++ {
+		h := history[i]
+		sign := "+"
+		if h.Amount < 0 {
+			sign = ""
+		}
+		sb.WriteString(fmt.Sprintf("%s%d 💎 %s\n", sign, h.Amount, h.Description))
 	}
 	return sb.String()
 }
