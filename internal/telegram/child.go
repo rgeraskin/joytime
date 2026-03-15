@@ -25,8 +25,31 @@ func (b *Bot) showChildMenu(c tele.Context) error {
 			btn("Выполнить задание", "child_task_done"),
 			btn("Получить награду", "child_reward_claim"),
 		),
+		btnRow(btn("Штрафы", "child_penalties")),
 	)
 	return c.Send(fmt.Sprintf("Твой баланс: %d 💎", tokens.Tokens), kb)
+}
+
+// --- Penalties (read-only) ---
+
+func (b *Bot) showChildPenalties(c tele.Context) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	penalties, err := b.services.PenaltyService.GetPenaltiesForFamily(bgCtx(), auth, auth.FamilyUID)
+	if err != nil {
+		return b.internalError(c, "Error getting penalties", err)
+	}
+
+	items := make([]string, len(penalties))
+	for i, p := range penalties {
+		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
+	}
+
+	msg := formatList("Штрафы", items)
+	return c.Send(msg, inlineKeyboard(btnRow(btn("Назад", "back_child"))))
 }
 
 // --- Task completion (number grid → immediate action) ---

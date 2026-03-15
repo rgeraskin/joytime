@@ -27,6 +27,11 @@ const (
 	stateAddRewardName    = "add_reward_name"
 	stateAddRewardTokens  = "add_reward_tokens"
 	stateEditRewardTokens = "edit_reward_tokens"
+	stateAddPenaltyName   = "add_penalty_name"
+	stateAddPenaltyTokens = "add_penalty_tokens"
+	stateAddPenaltyBulk   = "add_penalty_bulk"
+	stateEditPenaltyTokens = "edit_penalty_tokens"
+	stateApplyPenaltyChild = "apply_penalty_child"
 )
 
 // Number grid settings
@@ -117,6 +122,14 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	case "review_reject":
 		return b.onReviewReject(c)
 	}
+	// pick_penalty_child needs penalty name from state
+	if strings.HasPrefix(data, "pick_penalty_child:") {
+		num, err := parseNumber(data[len("pick_penalty_child:"):])
+		if err != nil {
+			return nil
+		}
+		return b.onApplyPenaltyChildPick(c, num)
+	}
 
 	b.clearState(c.Sender().ID)
 
@@ -142,6 +155,12 @@ func (b *Bot) handleCallback(c tele.Context) error {
 			return b.onTaskDonePick(c, num)
 		case "pick_reward_claim":
 			return b.onRewardClaimPick(c, num)
+		case "pick_edit_penalty":
+			return b.onEditPenaltyPick(c, num)
+		case "pick_del_penalty":
+			return b.onDeletePenaltyPick(c, num)
+		case "pick_apply_penalty":
+			return b.onApplyPenaltyPick(c, num)
 		}
 	}
 
@@ -189,7 +208,23 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	case "reward_delete":
 		return b.onDeleteRewardPrompt(c)
 
+	// Penalty CRUD
+	case "parent_penalties":
+		return b.showPenalties(c)
+	case "penalty_add":
+		return b.onAddPenaltyPrompt(c)
+	case "penalty_add_bulk":
+		return b.onAddPenaltyBulkPrompt(c)
+	case "penalty_edit":
+		return b.onEditPenaltyPrompt(c)
+	case "penalty_delete":
+		return b.onDeletePenaltyPrompt(c)
+	case "penalty_apply":
+		return b.onApplyPenaltyPrompt(c)
+
 	// Child actions
+	case "child_penalties":
+		return b.showChildPenalties(c)
 	case "child_task_done":
 		return b.onTaskDonePrompt(c)
 	case "child_reward_claim":
@@ -240,6 +275,16 @@ func (b *Bot) handleText(c tele.Context) error {
 		return b.onAddRewardTokens(c, text, inputCtx)
 	case stateEditRewardTokens:
 		return b.onEditRewardTokens(c, text, inputCtx)
+
+	// Penalty management (parent)
+	case stateAddPenaltyName:
+		return b.onAddPenaltyName(c, text)
+	case stateAddPenaltyTokens:
+		return b.onAddPenaltyTokens(c, text, inputCtx)
+	case stateAddPenaltyBulk:
+		return b.onAddPenaltyBulk(c, text)
+	case stateEditPenaltyTokens:
+		return b.onEditPenaltyTokens(c, text, inputCtx)
 	}
 
 	return c.Send("Не понимаю. Нажми /start для начала")
@@ -305,6 +350,7 @@ func parentMenuKeyboard() *tele.ReplyMarkup {
 func childMenuKeyboard() *tele.ReplyMarkup {
 	return inlineKeyboard(
 		btnRow(btn("Выполнить задание", "child_task_done"), btn("Получить награду", "child_reward_claim")),
+		btnRow(btn("Штрафы", "child_penalties")),
 	)
 }
 

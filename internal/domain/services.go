@@ -7,12 +7,13 @@ import (
 
 // Services contains all business logic services
 type Services struct {
-	TaskService   *TaskService
-	TokenService  *TokenService
-	UserService   *UserService
-	FamilyService *FamilyService
-	RewardService *RewardService
-	Auth          *CasbinAuthService
+	TaskService    *TaskService
+	TokenService   *TokenService
+	UserService    *UserService
+	FamilyService  *FamilyService
+	RewardService  *RewardService
+	PenaltyService *PenaltyService
+	Auth           *CasbinAuthService
 }
 
 // NewServices creates a new services instance with Casbin authorization
@@ -26,11 +27,12 @@ func NewServices(db *gorm.DB, logger *log.Logger) (*Services, error) {
 	tokenService := NewTokenService(db, logger, auth)
 
 	return &Services{
-		TaskService:   NewTaskService(db, logger, auth, tokenService),
-		TokenService:  tokenService,
-		UserService:   NewUserService(db, logger, auth),
-		FamilyService: NewFamilyService(db, logger, auth),
-		RewardService: NewRewardService(db, logger, auth),
-		Auth:          auth,
+		TaskService:    NewTaskService(db, logger, auth, tokenService),
+		TokenService:   tokenService,
+		UserService:    NewUserService(db, logger, auth),
+		FamilyService:  NewFamilyService(db, logger, auth),
+		RewardService:  NewRewardService(db, logger, auth),
+		PenaltyService: NewPenaltyService(db, logger, auth, tokenService),
+		Auth:           auth,
 	}, nil
 }

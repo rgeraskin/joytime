@@ -62,6 +62,7 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 		&models.Tokens{},
 		&models.Tasks{},
 		&models.Rewards{},
+		&models.Penalties{},
 		&models.TokenHistory{},
 	)
 	if err != nil {
@@ -72,7 +73,7 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 	// then create partial unique indexes that exclude soft-deleted rows.
 	// GORM's uniqueIndex tag creates regular indexes that block re-creation
 	// of entities with the same name after soft-delete.
-	for _, table := range []string{"tasks", "rewards"} {
+	for _, table := range []string{"tasks", "rewards", "penalties"} {
 		// Drop the old GORM-generated unique index (non-partial)
 		db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS idx_name`))
 

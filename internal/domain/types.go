@@ -24,6 +24,7 @@ const (
 const (
 	TokenTypeTaskCompleted    = "task_completed"
 	TokenTypeRewardClaimed    = "reward_claimed"
+	TokenTypePenalty          = "penalty"
 	TokenTypeManualAdjustment = "manual_adjustment"
 )
 

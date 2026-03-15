@@ -45,6 +45,10 @@ type Rewards struct {
 	Entities
 }
 
+type Penalties struct {
+	Entities
+}
+
 type Tokens struct {
 	gorm.Model
 	UserID    string         `json:"user_id" gorm:"uniqueIndex"`
