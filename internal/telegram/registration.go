@@ -102,11 +102,22 @@ func (b *Bot) onFamilyJoinText(c tele.Context, familyUID string) error {
 		return b.internalError(c, "Error joining family", err)
 	}
 
+	user, _ := b.findUser(c.Sender().ID)
+
 	if err := c.Send("Добро пожаловать в семью!"); err != nil {
 		return err
 	}
 
-	user, _ := b.findUser(c.Sender().ID)
+	// Notify parents about new member
+	if user != nil {
+		roleName := "родитель"
+		if user.Role == string(domain.RoleChild) {
+			roleName = "ребёнок"
+		}
+		b.notifyParents(familyUID, c.Sender().ID,
+			fmt.Sprintf("%s присоединился к семье (%s)", user.Name, roleName))
+	}
+
 	if user != nil && user.Role == string(domain.RoleChild) {
 		return b.showChildMenu(c)
 	}
