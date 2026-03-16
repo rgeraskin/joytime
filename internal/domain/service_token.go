@@ -163,7 +163,10 @@ func (s *TokenService) GetUserTokens(
 	return &tokens, nil
 }
 
-// GetTokenHistory retrieves token history for a user
+// maxHistoryRows is the maximum number of token history entries returned per query.
+const maxHistoryRows = 100
+
+// GetTokenHistory retrieves token history for a user (most recent first, capped).
 func (s *TokenService) GetTokenHistory(
 	ctx context.Context,
 	authCtx *AuthContext,
@@ -177,6 +180,7 @@ func (s *TokenService) GetTokenHistory(
 	err := s.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
+		Limit(maxHistoryRows).
 		Find(&history).
 		Error
 	return history, err
