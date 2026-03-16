@@ -521,6 +521,9 @@ func btn(text, data string) tele.InlineButton {
 	return tele.InlineButton{Text: text, Data: data}
 }
 
+// maxEntityNameLength is the maximum allowed length for entity names entered via Telegram.
+const maxEntityNameLength = 100
+
 func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
 }

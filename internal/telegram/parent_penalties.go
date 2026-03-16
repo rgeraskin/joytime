@@ -44,6 +44,9 @@ func (b *Bot) onAddPenaltyPrompt(c tele.Context) error {
 }
 
 func (b *Bot) onAddPenaltyName(c tele.Context, name string) error {
+	if len(name) > maxEntityNameLength {
+		return c.Send(fmt.Sprintf("❌ Название слишком длинное (максимум %d символов)", maxEntityNameLength))
+	}
 	if err := b.setState(c.Sender().ID, stateAddPenaltyTokens, name); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
