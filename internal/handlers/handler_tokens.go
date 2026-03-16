@@ -83,8 +83,8 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 		update.Amount,
 		update.Type,
 		update.Description,
-		update.TaskID,
-		update.RewardID,
+		nil,
+		nil,
 		nil,
 	)
 	if err != nil {

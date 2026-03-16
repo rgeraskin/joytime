@@ -44,8 +44,6 @@ type TokenAddRequest struct {
 	Amount      int    `json:"amount"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
-	TaskID      *uint  `json:"task_id,omitempty"`
-	RewardID    *uint  `json:"reward_id,omitempty"`
 }
 
 // respondJSON sends a JSON response
