@@ -396,7 +396,9 @@ func (b *Bot) authCtx(tgID int64) (*domain.AuthContext, error) {
 }
 
 func (b *Bot) clearState(tgID int64) {
-	_ = b.services.UserService.SetInputState(bgCtx(), makeUserID(tgID), "", "")
+	if err := b.services.UserService.SetInputState(bgCtx(), makeUserID(tgID), "", ""); err != nil {
+		b.logger.Error("Failed to clear input state", "error", err, "tg_id", tgID)
+	}
 }
 
 func (b *Bot) setState(tgID int64, state, inputCtx string) error {
