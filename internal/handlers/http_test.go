@@ -60,6 +60,7 @@ func cleanupTestData() {
 	testDB.Unscoped().Where("1 = 1").Delete(&models.Tokens{})
 	testDB.Unscoped().Where("1 = 1").Delete(&models.Tasks{})
 	testDB.Unscoped().Where("1 = 1").Delete(&models.Rewards{})
+	testDB.Unscoped().Where("1 = 1").Delete(&models.Penalties{})
 	testDB.Unscoped().Where("1 = 1").Delete(&models.Invites{})
 	testDB.Unscoped().Where("1 = 1").Delete(&models.Users{})
 	testDB.Unscoped().Where("1 = 1").Delete(&models.Families{})
@@ -79,6 +80,7 @@ func migrateTestSchema(includeEntities bool) error {
 	modelsList = append(modelsList,
 		&models.Tasks{},
 		&models.Rewards{},
+		&models.Penalties{},
 		&models.Invites{},
 		&models.Tokens{},
 		&models.TokenHistory{},
