@@ -86,8 +86,9 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 	// Create partial unique indexes that exclude soft-deleted rows.
 	// Both PostgreSQL and SQLite support partial indexes with WHERE clause.
 	for _, table := range []string{"tasks", "rewards", "penalties"} {
-		// Drop the old GORM-generated non-partial unique index
-		db.Exec(`DROP INDEX IF EXISTS idx_name`)
+		// Drop the old GORM-generated non-partial unique index (table-specific name)
+		oldIdx := fmt.Sprintf("idx_%s_name", table)
+		db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS %s`, oldIdx))
 
 		idx := fmt.Sprintf("idx_%s_family_name_active", table)
 		sql := fmt.Sprintf(
