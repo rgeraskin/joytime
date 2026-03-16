@@ -30,6 +30,8 @@ func SetupAPI(services *domain.Services, logger *log.Logger) *http.Server {
 	mux.HandleFunc("/api/v1/tasks/", handler.handleTasksByFamily)
 	mux.HandleFunc("/api/v1/rewards", handler.handleRewards)
 	mux.HandleFunc("/api/v1/rewards/", handler.handleRewardsByFamily)
+	mux.HandleFunc("/api/v1/penalties", handler.handlePenalties)
+	mux.HandleFunc("/api/v1/penalties/", handler.handlePenaltiesByFamily)
 	mux.HandleFunc("/api/v1/tokens/users/", handler.handleUserTokens)
 	mux.HandleFunc("/api/v1/token-history", handler.handleTokenHistory)
 	mux.HandleFunc("/api/v1/token-history/users/", handler.handleUserTokenHistory)
