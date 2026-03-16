@@ -393,6 +393,93 @@ func TestFamilyMemberManagement(t *testing.T) {
 	})
 }
 
+func TestDeleteUserCascadesToTokensAndHistory(t *testing.T) {
+	setupTestDB(t)
+	family, parent, child, _ := setupServiceTestData(t)
+
+	parentCtx := &domain.AuthContext{
+		UserID:    parent.UserID,
+		UserRole:  domain.RoleParent,
+		FamilyUID: family.UID,
+	}
+
+	// Child has 50 tokens from setup; add more to create history
+	err := testHandler.services.TokenService.AddTokensToUser(
+		context.Background(), parentCtx, child.UserID,
+		10, domain.TokenTypeManualAdjustment, "Test bonus", nil, nil,
+	)
+	require.NoError(t, err)
+
+	// Verify tokens and history exist
+	tokens, err := testHandler.services.TokenService.GetUserTokens(context.Background(), parentCtx, child.UserID)
+	require.NoError(t, err)
+	assert.Equal(t, 60, tokens.Tokens)
+
+	history, err := testHandler.services.TokenService.GetTokenHistory(context.Background(), parentCtx, child.UserID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(history), 1)
+
+	// Delete child
+	err = testHandler.services.UserService.DeleteUser(context.Background(), parentCtx, child.UserID)
+	require.NoError(t, err)
+
+	// Verify tokens are gone (query unscoped since Tokens uses soft delete)
+	var tokenCount int64
+	testDB.Unscoped().Model(&models.Tokens{}).Where("user_id = ?", child.UserID).Count(&tokenCount)
+	assert.Equal(t, int64(0), tokenCount)
+
+	// Verify history is gone
+	var historyCount int64
+	testDB.Model(&models.TokenHistory{}).Where("user_id = ?", child.UserID).Count(&historyCount)
+	assert.Equal(t, int64(0), historyCount)
+}
+
+func TestCreateUserRestoresSoftDeleted(t *testing.T) {
+	setupTestDB(t)
+	family, parent, child, _ := setupServiceTestData(t)
+
+	parentCtx := &domain.AuthContext{
+		UserID:    parent.UserID,
+		UserRole:  domain.RoleParent,
+		FamilyUID: family.UID,
+	}
+
+	// Delete child (soft delete)
+	err := testHandler.services.UserService.DeleteUser(context.Background(), parentCtx, child.UserID)
+	require.NoError(t, err)
+
+	// Verify soft-deleted (exists unscoped, not found scoped)
+	_, err = testHandler.services.UserService.FindUser(context.Background(), child.UserID)
+	assert.Error(t, err)
+
+	var existing models.Users
+	err = testDB.Unscoped().Where("user_id = ?", child.UserID).First(&existing).Error
+	require.NoError(t, err)
+	assert.True(t, existing.DeletedAt.Valid)
+
+	// Re-create with same user ID but different data
+	newUser := &models.Users{
+		UserID:    child.UserID,
+		Name:      "Restored Child",
+		Role:      "child",
+		FamilyUID: family.UID,
+		Platform:  "telegram",
+	}
+	err = testHandler.services.UserService.CreateUser(context.Background(), newUser)
+	require.NoError(t, err)
+
+	// Verify restored with new data
+	restored, err := testHandler.services.UserService.FindUser(context.Background(), child.UserID)
+	require.NoError(t, err)
+	assert.Equal(t, "Restored Child", restored.Name)
+	assert.False(t, restored.DeletedAt.Valid)
+
+	// Verify no duplicate rows
+	var count int64
+	testDB.Unscoped().Model(&models.Users{}).Where("user_id = ?", child.UserID).Count(&count)
+	assert.Equal(t, int64(1), count)
+}
+
 func TestEntitiesSortedByTokensDescending(t *testing.T) {
 	setupTestDB(t)
 	family, parent, _, _ := setupServiceTestData(t)

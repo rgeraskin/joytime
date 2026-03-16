@@ -11,25 +11,25 @@ services:
     volumes:
       - ./data:/data
 
-#   postgres:
-#     image: postgres:15-alpine
-#     environment:
-#       POSTGRES_DB: ${PGDATABASE}
-#       POSTGRES_USER: ${PGUSER}
-#       POSTGRES_PASSWORD: ${PGPASSWORD}
-#       POSTGRES_HOST_AUTH_METHOD: trust
-#     ports:
-#       - ${PGPORT}:5432
-#     volumes:
-#       - postgres_data:/var/lib/postgresql/data
-#     restart: unless-stopped
-#     healthcheck:
-#       test:
-#         - CMD-SHELL
-#         - pg_isready -U ${PGUSER} -d ${PGDATABASE}
-#       interval: 30s
-#       timeout: 10s
-#       retries: 3
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE}
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - ${PGPORT}:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${PGUSER} -d ${PGDATABASE}
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-# volumes:
-#   postgres_data: null
+volumes:
+  postgres_data: null
