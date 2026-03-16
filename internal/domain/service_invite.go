@@ -2,9 +2,6 @@ package domain
 
 import (
 	"context"
-	"crypto/rand"
-	"fmt"
-	"math/big"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -12,8 +9,7 @@ import (
 )
 
 const (
-	inviteCodeLength  = 8
-	inviteCodeCharset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	inviteCodeLength = 8
 )
 
 // InviteService handles invite code business logic
@@ -89,13 +85,5 @@ func (s *InviteService) UseInvite(ctx context.Context, code string) (*models.Inv
 }
 
 func generateInviteCode() (string, error) {
-	code := make([]byte, inviteCodeLength)
-	for i := range code {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(inviteCodeCharset))))
-		if err != nil {
-			return "", fmt.Errorf("failed to generate invite code: %w", err)
-		}
-		code[i] = inviteCodeCharset[n.Int64()]
-	}
-	return string(code), nil
+	return generateRandomCode(inviteCodeLength)
 }

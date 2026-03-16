@@ -2,9 +2,7 @@ package domain
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"math/big"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -20,8 +18,7 @@ type FamilyService struct {
 
 const (
 	// Family UID generation constants
-	familyUIDLength  = 6
-	familyUIDCharset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Excluded confusing chars: 0,O,1,I
+	familyUIDLength = 6
 )
 
 // NewFamilyService creates a new family service
@@ -37,16 +34,10 @@ func NewFamilyService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) 
 func (s *FamilyService) generateUniqueFamilyUID(ctx context.Context) (string, error) {
 	maxAttempts := 10
 	for range maxAttempts {
-		// Generate random UID using crypto/rand
-		familyUIDBytes := make([]byte, familyUIDLength)
-		for j := range familyUIDBytes {
-			n, err := rand.Int(rand.Reader, big.NewInt(int64(len(familyUIDCharset))))
-			if err != nil {
-				return "", fmt.Errorf("failed to generate random UID: %w", err)
-			}
-			familyUIDBytes[j] = familyUIDCharset[n.Int64()]
+		uid, err := generateRandomCode(familyUIDLength)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate family UID: %w", err)
 		}
-		uid := string(familyUIDBytes)
 
 		// Check if UID already exists
 		var count int64
