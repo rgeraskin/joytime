@@ -157,7 +157,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	if strings.HasPrefix(data, "pick_penalty_child:") {
 		num, err := parseNumber(data[len("pick_penalty_child:"):])
 		if err != nil {
-			return nil
+			b.logger.Warn("Invalid callback number", "data", data, "error", err)
+			return c.Send("❌ Некорректные данные кнопки. Попробуй /start")
 		}
 		return b.onApplyPenaltyChildPick(c, num)
 	}
@@ -169,7 +170,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		prefix := data[:idx]
 		num, err := parseNumber(data[idx+1:])
 		if err != nil {
-			return nil
+			b.logger.Warn("Invalid callback number", "data", data, "error", err)
+			return c.Send("❌ Некорректные данные кнопки. Попробуй /start")
 		}
 		switch prefix {
 		case "pick_edit_task":
