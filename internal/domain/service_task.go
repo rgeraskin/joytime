@@ -5,6 +5,7 @@ import (
 
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TaskService handles task-related business logic
@@ -96,58 +97,61 @@ func (s *TaskService) CompleteTask(
 		return nil, err
 	}
 
-	task, err := findByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate status transitions
-	if task.Status == TaskStatusCompleted {
-		return nil, ErrTaskAlreadyCompleted
-	}
-
-	if authCtx.UserRole == RoleChild {
-		// Child marks task as "check" — needs parent verification
-		if task.Status != TaskStatusNew {
-			return nil, ErrTaskInvalidForReview
+	var task *models.Tasks
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the task row to prevent concurrent status changes
+		var t models.Tasks
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("family_uid = ? AND name = ?", familyUID, taskName).
+			First(&t).Error; err != nil {
+			return err
 		}
 
-		// If task is already assigned, only the assigned child can submit
-		if task.AssignedToUserID != "" && task.AssignedToUserID != authCtx.UserID {
-			return nil, ErrTaskNotAssignedToUser
+		// Validate status transitions
+		if t.Status == TaskStatusCompleted {
+			return ErrTaskAlreadyCompleted
 		}
 
-		task.Status = TaskStatusCheck
-		// Record which child submitted for review
-		task.AssignedToUserID = authCtx.UserID
+		if authCtx.UserRole == RoleChild {
+			// Child marks task as "check" — needs parent verification
+			if t.Status != TaskStatusNew {
+				return ErrTaskInvalidForReview
+			}
 
-		if err := s.db.WithContext(ctx).Save(task).Error; err != nil {
-			return nil, err
+			// If task is already assigned, only the assigned child can submit
+			if t.AssignedToUserID != "" && t.AssignedToUserID != authCtx.UserID {
+				return ErrTaskNotAssignedToUser
+			}
+
+			t.Status = TaskStatusCheck
+			// Record which child submitted for review
+			t.AssignedToUserID = authCtx.UserID
+
+			if err := tx.Save(&t).Error; err != nil {
+				return err
+			}
+			task = &t
+			return nil
 		}
-		return task, nil
-	}
 
-	// Parent approves — mark as completed and award tokens to the assigned child
-	if task.Status != TaskStatusCheck && task.Status != TaskStatusNew {
-		return nil, ErrTaskInvalidForApprove
-	}
+		// Parent approves — mark as completed and award tokens to the assigned child
+		if t.Status != TaskStatusCheck && t.Status != TaskStatusNew {
+			return ErrTaskInvalidForApprove
+		}
 
-	if task.AssignedToUserID == "" {
-		return nil, ErrNoAssignedChild
-	}
+		if t.AssignedToUserID == "" {
+			return ErrNoAssignedChild
+		}
 
-	// Wrap token award + task reset in a single transaction.
-	// Tasks are repeatable: award tokens, then reset to "new" so the task
-	// can be completed again.
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if task.Tokens > 0 {
-			taskID := task.ID
+		// Award tokens, then reset to "new" so the task can be completed again
+		if t.Tokens > 0 {
+			taskID := t.ID
 			if _, err := s.tokens.addTokensInTx(
 				tx,
-				task.AssignedToUserID,
-				task.Tokens,
+				t.AssignedToUserID,
+				t.Tokens,
 				TokenTypeTaskCompleted,
-				HistoryDescTask+task.Name,
+				HistoryDescTask+t.Name,
 				&taskID,
 				nil,
 				nil,
@@ -157,9 +161,13 @@ func (s *TaskService) CompleteTask(
 		}
 
 		// Reset task to "new" so it's available for the next completion
-		task.Status = TaskStatusNew
-		task.AssignedToUserID = ""
-		return tx.Select("status", "assigned_to_user_id").Save(task).Error
+		t.Status = TaskStatusNew
+		t.AssignedToUserID = ""
+		if err := tx.Select("status", "assigned_to_user_id").Save(&t).Error; err != nil {
+			return err
+		}
+		task = &t
+		return nil
 	})
 	if err != nil {
 		return nil, err
