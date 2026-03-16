@@ -125,6 +125,7 @@ func (h *APIHandler) applyPenalty(w http.ResponseWriter, r *http.Request, authCt
 		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
 		return
 	}
+	req.ChildUserID = sanitizeInput(req.ChildUserID)
 	if req.ChildUserID == "" {
 		h.respondError(w, http.StatusBadRequest, "child_user_id is required")
 		return
