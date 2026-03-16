@@ -97,10 +97,10 @@ func (s *TokenService) addTokensInTx(
 		}
 	}
 
-	tokens.Tokens += amount
-	if tokens.Tokens < 0 {
+	if tokens.Tokens+amount < 0 {
 		return nil, ErrInsufficientTokens
 	}
+	tokens.Tokens += amount
 	if err := tx.Save(&tokens).Error; err != nil {
 		return nil, err
 	}
