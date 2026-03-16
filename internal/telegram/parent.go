@@ -907,7 +907,7 @@ func (b *Bot) onEditPenaltyTokens(c tele.Context, text, penaltyName string) erro
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	updates := &domain.UpdateRewardRequest{Tokens: &tokens}
+	updates := &domain.UpdatePenaltyRequest{Tokens: &tokens}
 	if _, err := b.services.PenaltyService.UpdatePenalty(bgCtx(), auth, auth.FamilyUID, penaltyName, updates); err != nil {
 		return b.internalError(c, "Error updating penalty", err)
 	}

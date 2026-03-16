@@ -205,3 +205,6 @@ func (r *UpdateRewardRequest) Validate() error {
 	}
 	return validateTokensOptional(r.Tokens)
 }
+
+// UpdatePenaltyRequest has the same fields as UpdateRewardRequest.
+type UpdatePenaltyRequest = UpdateRewardRequest

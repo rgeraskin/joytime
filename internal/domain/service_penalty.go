@@ -67,7 +67,7 @@ func (s *PenaltyService) UpdatePenalty(
 	ctx context.Context,
 	authCtx *AuthContext,
 	familyUID, penaltyName string,
-	updates *UpdateRewardRequest,
+	updates *UpdatePenaltyRequest,
 ) (*models.Penalties, error) {
 	if err := s.auth.RequirePermission(authCtx, "penalties", "update", familyUID); err != nil {
 		return nil, err
