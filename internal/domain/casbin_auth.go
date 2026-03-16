@@ -185,10 +185,10 @@ func (cas *CasbinAuthService) CheckPermission(
 	// Check permission using Casbin with family context
 	allowed, err := cas.enforcer.Enforce(
 		string(authCtx.UserRole), // sub (role)
-		resource,                    // obj
-		action,                      // act
+		resource,                 // obj
+		action,                   // act
 		authCtx.FamilyUID,        // familyCtx (user's family)
-		resourceFamilyUID,           // resourceFamily (resource's family)
+		resourceFamilyUID,        // resourceFamily (resource's family)
 	)
 	if err != nil {
 		return false, fmt.Errorf("failed to enforce policy: %w", err)

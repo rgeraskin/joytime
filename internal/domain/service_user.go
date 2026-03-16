@@ -191,12 +191,12 @@ func (s *UserService) CreateUser(ctx context.Context, user *models.Users) error 
 	if err == nil && existing.DeletedAt.Valid {
 		// Restore soft-deleted user with new data
 		return s.db.WithContext(ctx).Unscoped().Model(&existing).Updates(map[string]any{
-			"deleted_at":  nil,
-			"name":        user.Name,
-			"role":        user.Role,
-			"family_uid":  user.FamilyUID,
-			"platform":    user.Platform,
-			"input_state": "",
+			"deleted_at":    nil,
+			"name":          user.Name,
+			"role":          user.Role,
+			"family_uid":    user.FamilyUID,
+			"platform":      user.Platform,
+			"input_state":   "",
 			"input_context": "",
 		}).Error
 	}

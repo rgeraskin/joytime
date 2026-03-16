@@ -50,4 +50,3 @@ func (h *APIHandler) authed(fn func(http.ResponseWriter, *http.Request, *domain.
 		fn(w, r, authCtx)
 	})
 }
-
