@@ -553,6 +553,14 @@ func parseBulkInput(text string) (items []bulkItem, errs []string) {
 			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
 			continue
 		}
+		if tokens <= 0 {
+			errs = append(errs, fmt.Sprintf("'%s' — токены должны быть > 0", line))
+			continue
+		}
+		if len(name) > maxEntityNameLength {
+			errs = append(errs, fmt.Sprintf("'%s' — название слишком длинное", name))
+			continue
+		}
 		items = append(items, bulkItem{Name: name, Tokens: tokens})
 	}
 	return items, errs
