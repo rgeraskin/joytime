@@ -78,7 +78,7 @@ func TestNegativeBalanceBlocked(t *testing.T) {
 
 	t.Run("Cannot deduct more tokens than balance", func(t *testing.T) {
 		// Child has 50 tokens from setup
-		err := testHandler.services.TokenService.AddTokensToUser(
+		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(), parentCtx, child.UserID,
 			-51, domain.TokenTypeManualAdjustment, "Over-deduction", nil, nil,
 		)
@@ -93,7 +93,7 @@ func TestNegativeBalanceBlocked(t *testing.T) {
 	})
 
 	t.Run("Can deduct exact balance", func(t *testing.T) {
-		err := testHandler.services.TokenService.AddTokensToUser(
+		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(), parentCtx, child.UserID,
 			-50, domain.TokenTypeManualAdjustment, "Exact deduction", nil, nil,
 		)
@@ -292,7 +292,7 @@ func TestTokenHistoryAccess(t *testing.T) {
 
 	// Child already has 50 tokens from setup, but no history entry was created
 	// Add tokens via service to create history
-	err := testHandler.services.TokenService.AddTokensToUser(
+	_, err := testHandler.services.TokenService.AddTokensToUser(
 		context.Background(), parentCtx, child.UserID,
 		50, domain.TokenTypeManualAdjustment, "Initial bonus", nil, nil,
 	)
@@ -320,7 +320,7 @@ func TestTokenHistoryAccess(t *testing.T) {
 
 	t.Run("History ordered by created_at DESC", func(t *testing.T) {
 		// Add more tokens to create a second entry
-		err := testHandler.services.TokenService.AddTokensToUser(
+		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(), parentCtx, child.UserID,
 			10, domain.TokenTypeManualAdjustment, "Second bonus", nil, nil,
 		)
@@ -404,7 +404,7 @@ func TestDeleteUserCascadesToTokensAndHistory(t *testing.T) {
 	}
 
 	// Child has 50 tokens from setup; add more to create history
-	err := testHandler.services.TokenService.AddTokensToUser(
+	_, err := testHandler.services.TokenService.AddTokensToUser(
 		context.Background(), parentCtx, child.UserID,
 		10, domain.TokenTypeManualAdjustment, "Test bonus", nil, nil,
 	)
@@ -491,7 +491,10 @@ func TestEntitiesSortedByTokensDescending(t *testing.T) {
 	}
 
 	// Create tasks with different token values
-	for _, tc := range []struct{ name string; tokens int }{
+	for _, tc := range []struct {
+		name   string
+		tokens int
+	}{
 		{"Low Task", 5}, {"High Task", 20}, {"Mid Task", 10},
 	} {
 		task := &models.Tasks{Entities: models.Entities{FamilyUID: family.UID, Name: tc.name, Tokens: tc.tokens}}
@@ -499,7 +502,10 @@ func TestEntitiesSortedByTokensDescending(t *testing.T) {
 	}
 
 	// Create rewards with different token values
-	for _, rc := range []struct{ name string; tokens int }{
+	for _, rc := range []struct {
+		name   string
+		tokens int
+	}{
 		{"Cheap Reward", 3}, {"Expensive Reward", 15}, {"Mid Reward", 7},
 	} {
 		reward := &models.Rewards{Entities: models.Entities{FamilyUID: family.UID, Name: rc.name, Tokens: rc.tokens}}

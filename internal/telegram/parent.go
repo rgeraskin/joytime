@@ -1511,7 +1511,7 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	err = b.services.TokenService.AddTokensToUser(
+	_, err = b.services.TokenService.AddTokensToUser(
 		bgCtx(), auth, childUserID, tokens,
 		domain.TokenTypeManualAdjustment, "Коррекция: "+reason, nil, nil,
 	)

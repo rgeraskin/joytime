@@ -182,7 +182,7 @@ func TestCasbinParentPermissions(t *testing.T) {
 			FamilyUID: family.UID,
 		}
 
-		err := testHandler.services.TokenService.AddTokensToUser(
+		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(),
 			authCtx,
 			child.UserID,
@@ -357,8 +357,6 @@ func TestCasbinChildPermissions(t *testing.T) {
 		assert.Contains(t, err.Error(), "unauthorized")
 	})
 
-
-
 	t.Run("Child CANNOT manually adjust tokens", func(t *testing.T) {
 		childCtx := &domain.AuthContext{
 			UserID:    child.UserID,
@@ -366,7 +364,7 @@ func TestCasbinChildPermissions(t *testing.T) {
 			FamilyUID: family.UID,
 		}
 
-		err := testHandler.services.TokenService.AddTokensToUser(
+		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(),
 			childCtx,
 			child.UserID,
@@ -565,5 +563,3 @@ func TestCasbinFamilyIsolation(t *testing.T) {
 		assert.Equal(t, "Family2 Task", tasks2[0].Name)
 	})
 }
-
-

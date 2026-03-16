@@ -155,7 +155,7 @@ func (s *TaskService) CompleteTask(
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if task.Tokens > 0 {
 			taskID := task.ID
-			if err := s.tokens.addTokensInTx(
+			if _, err := s.tokens.addTokensInTx(
 				tx,
 				task.AssignedToUserID,
 				task.Tokens,

@@ -26,7 +26,8 @@ func NewTokenService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *
 	}
 }
 
-// AddTokensToUser adds tokens to a user with business rule enforcement
+// AddTokensToUser adds tokens to a user with business rule enforcement.
+// Returns the updated token balance.
 func (s *TokenService) AddTokensToUser(
 	ctx context.Context,
 	authCtx *AuthContext,
@@ -34,17 +35,17 @@ func (s *TokenService) AddTokensToUser(
 	amount int,
 	tokenType, description string,
 	taskID, rewardID *uint,
-) error {
+) (*models.Tokens, error) {
 	// Get target user to check family and authorization
 	var targetUser models.Users
 	err := s.db.WithContext(ctx).Where("user_id = ?", targetUserID).First(&targetUser).Error
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check permission and family access using Casbin
 	if err := s.auth.RequirePermission(authCtx, "tokens", "add", targetUser.FamilyUID); err != nil {
-		return err
+		return nil, err
 	}
 
 	return s.addTokens(ctx, targetUserID, amount, tokenType, description, taskID, rewardID)
@@ -59,10 +60,17 @@ func (s *TokenService) addTokens(
 	amount int,
 	tokenType, description string,
 	taskID, rewardID *uint,
-) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return s.addTokensInTx(tx, targetUserID, amount, tokenType, description, taskID, rewardID)
+) (*models.Tokens, error) {
+	var result *models.Tokens
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tokens, err := s.addTokensInTx(tx, targetUserID, amount, tokenType, description, taskID, rewardID)
+		if err != nil {
+			return err
+		}
+		result = tokens
+		return nil
 	})
+	return result, err
 }
 
 // addTokensInTx performs token modification within an existing transaction.
@@ -74,7 +82,7 @@ func (s *TokenService) addTokensInTx(
 	amount int,
 	tokenType, description string,
 	taskID, rewardID *uint,
-) error {
+) (*models.Tokens, error) {
 	var tokens models.Tokens
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("user_id = ?", targetUserID).First(&tokens).Error
@@ -85,16 +93,16 @@ func (s *TokenService) addTokensInTx(
 				Tokens: 0,
 			}
 		} else {
-			return err
+			return nil, err
 		}
 	}
 
 	tokens.Tokens += amount
 	if tokens.Tokens < 0 {
-		return ErrInsufficientTokens
+		return nil, ErrInsufficientTokens
 	}
 	if err := tx.Save(&tokens).Error; err != nil {
-		return err
+		return nil, err
 	}
 
 	history := models.TokenHistory{
@@ -105,7 +113,10 @@ func (s *TokenService) addTokensInTx(
 		TaskID:      taskID,
 		RewardID:    rewardID,
 	}
-	return tx.Create(&history).Error
+	if err := tx.Create(&history).Error; err != nil {
+		return nil, err
+	}
+	return &tokens, nil
 }
 
 // requireTokenReadPermission checks that authCtx may read the given user's tokens.
@@ -193,7 +204,7 @@ func (s *TokenService) ClaimReward(
 		}
 
 		rewardID := reward.ID
-		return s.addTokensInTx(
+		_, err := s.addTokensInTx(
 			tx,
 			authCtx.UserID,
 			-reward.Tokens,
@@ -202,5 +213,6 @@ func (s *TokenService) ClaimReward(
 			nil,
 			&rewardID,
 		)
+		return err
 	})
 }

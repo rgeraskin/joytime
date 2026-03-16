@@ -77,7 +77,7 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 		return
 	}
 
-	err := h.services.TokenService.AddTokensToUser(
+	tokens, err := h.services.TokenService.AddTokensToUser(
 		r.Context(),
 		authCtx,
 		userID,
@@ -89,12 +89,6 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 	)
 	if err != nil {
 		h.respondServiceError(w, err, "failed to update user tokens")
-		return
-	}
-
-	tokens, err := h.services.TokenService.GetUserTokens(r.Context(), authCtx, userID)
-	if err != nil {
-		h.respondServiceError(w, err, "failed to retrieve updated tokens")
 		return
 	}
 

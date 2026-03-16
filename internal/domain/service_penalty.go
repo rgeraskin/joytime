@@ -159,7 +159,7 @@ func (s *PenaltyService) ApplyPenalty(
 		return nil, err
 	}
 
-	if err := s.tokens.addTokens(
+	if _, err := s.tokens.addTokens(
 		ctx,
 		childUserID,
 		-penalty.Tokens,
