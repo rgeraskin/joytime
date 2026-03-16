@@ -51,7 +51,7 @@ func (h *APIHandler) getOwnFamily(
 		return
 	}
 
-	h.respondSuccess(w, http.StatusOK, []models.Families{*family})
+	h.respondSuccess(w, http.StatusOK, family)
 }
 
 func (h *APIHandler) createFamily(

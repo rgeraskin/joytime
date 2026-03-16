@@ -38,7 +38,7 @@ func TestFamilyHTTPHandlers(t *testing.T) {
 		createdFamilyUID = family.UID
 	})
 
-	t.Run("GET /families lists families for authenticated user", func(t *testing.T) {
+	t.Run("GET /families gets own family for authenticated user", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/families", nil)
 		req.Header.Set("X-User-ID", parent.UserID)
 		w := httptest.NewRecorder()
@@ -46,9 +46,9 @@ func TestFamilyHTTPHandlers(t *testing.T) {
 		testHandler.handleFamilies(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var families []models.Families
-		assertSuccessResponse(t, w, http.StatusOK, &families)
-		assert.NotEmpty(t, families)
+		var family models.Families
+		assertSuccessResponse(t, w, http.StatusOK, &family)
+		assert.NotEmpty(t, family.UID)
 	})
 
 	t.Run("GET /families/{uid} gets a specific family", func(t *testing.T) {
