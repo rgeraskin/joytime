@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"sort"
 
 	"gorm.io/gorm"
 )
@@ -44,12 +45,13 @@ func (uf UpdateFields) AddIntIfSet(field string, value *int) UpdateFields {
 	return uf
 }
 
-// Keys returns the field names that were actually set
+// Keys returns the field names that were actually set, sorted for deterministic ordering.
 func (uf UpdateFields) Keys() []string {
 	keys := make([]string, 0, len(uf))
 	for k := range uf {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 	return keys
 }
 
