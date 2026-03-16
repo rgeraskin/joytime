@@ -3,7 +3,6 @@ package telegram
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -367,8 +366,11 @@ func (b *Bot) startManualAdjust(c tele.Context, childUserID string) error {
 }
 
 func (b *Bot) onManualAdjustReason(c tele.Context, reason, childUserID string) error {
-	// Store childUserID|reason for the next step
-	ctx := childUserID + "|" + reason
+	// Store childUserID and reason as JSON for safe parsing in the next step
+	ctx, err := encodeStateJSON(map[string]string{"user": childUserID, "reason": reason})
+	if err != nil {
+		return b.internalError(c, "Error encoding state", err)
+	}
 	if err := b.setState(c.Sender().ID, stateManualAdjustTokens, ctx); err != nil {
 		return b.internalError(c, "Error setting state", err)
 	}
@@ -387,13 +389,16 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 		return c.Send("Количество токенов не может быть 0")
 	}
 
-	// Parse childUserID|reason from context
-	parts := strings.SplitN(inputCtx, "|", 2)
-	if len(parts) != 2 {
+	// Parse childUserID and reason from JSON state
+	stateMap, err := decodeStateJSON(inputCtx)
+	if err != nil {
 		return c.Send("Ошибка. Попробуй /start")
 	}
-	childUserID := parts[0]
-	reason := parts[1]
+	childUserID := stateMap["user"]
+	reason := stateMap["reason"]
+	if childUserID == "" || reason == "" {
+		return c.Send("Ошибка. Попробуй /start")
+	}
 
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {

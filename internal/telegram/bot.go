@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -532,6 +533,24 @@ func btn(text, data string) tele.InlineButton {
 
 // maxEntityNameLength is the maximum allowed length for entity names entered via Telegram.
 const maxEntityNameLength = 100
+
+// encodeStateJSON marshals a string map to JSON for multi-field state storage.
+func encodeStateJSON(data map[string]string) (string, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// decodeStateJSON unmarshals a JSON string back to a string map.
+func decodeStateJSON(s string) (map[string]string, error) {
+	var data map[string]string
+	if err := json.Unmarshal([]byte(s), &data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
 
 func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
