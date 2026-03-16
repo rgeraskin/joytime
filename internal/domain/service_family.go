@@ -133,16 +133,16 @@ func (s *FamilyService) UpdateFamily(
 		return nil, err
 	}
 
-	// Use Select to specify exactly which fields can be updated
-	err = s.db.WithContext(ctx).Model(&family).Select("name").Updates(map[string]any{
-		"name": updates.Name,
-	}).Error
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&family).Select("name").Updates(map[string]any{
+			"name": updates.Name,
+		}).Error; err != nil {
+			return err
+		}
+		// Re-read to return current state
+		return tx.First(&family, family.ID).Error
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	// Re-read to return current state
-	if err := s.db.WithContext(ctx).First(&family, family.ID).Error; err != nil {
 		return nil, err
 	}
 

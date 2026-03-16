@@ -91,16 +91,16 @@ func (s *PenaltyService) UpdatePenalty(
 	updateFields.AddIntIfSet("tokens", updates.Tokens)
 
 	if len(updateFields) > 0 {
-		err = s.db.WithContext(ctx).
-			Model(&penalty).
-			Select(updateFields.Keys()).
-			Updates(updateFields.ToMap()).
-			Error
+		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&penalty).
+				Select(updateFields.Keys()).
+				Updates(updateFields.ToMap()).
+				Error; err != nil {
+				return err
+			}
+			return tx.First(&penalty, penalty.ID).Error
+		})
 		if err != nil {
-			return nil, err
-		}
-
-		if err := s.db.WithContext(ctx).First(&penalty, penalty.ID).Error; err != nil {
 			return nil, err
 		}
 	}

@@ -285,17 +285,17 @@ func (s *TaskService) UpdateTask(
 
 	// Apply updates only if there are fields to update
 	if len(updateFields) > 0 {
-		err = s.db.WithContext(ctx).
-			Model(&task).
-			Select(updateFields.Keys()).
-			Updates(updateFields.ToMap()).
-			Error
+		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&task).
+				Select(updateFields.Keys()).
+				Updates(updateFields.ToMap()).
+				Error; err != nil {
+				return err
+			}
+			// Re-read to return current state (use ID since name may have changed)
+			return tx.First(&task, task.ID).Error
+		})
 		if err != nil {
-			return nil, err
-		}
-
-		// Re-read to return current state (use ID since name may have changed)
-		if err := s.db.WithContext(ctx).First(&task, task.ID).Error; err != nil {
 			return nil, err
 		}
 	}

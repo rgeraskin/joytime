@@ -116,17 +116,17 @@ func (s *UserService) UpdateUser(
 
 	// Apply updates only if there are fields to update
 	if len(updateFields) > 0 {
-		err = s.db.WithContext(ctx).
-			Model(&existingUser).
-			Select(updateFields.Keys()).
-			Updates(updateFields.ToMap()).
-			Error
+		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&existingUser).
+				Select(updateFields.Keys()).
+				Updates(updateFields.ToMap()).
+				Error; err != nil {
+				return err
+			}
+			// Re-read to return current state
+			return tx.Where("user_id = ?", userID).First(&existingUser).Error
+		})
 		if err != nil {
-			return nil, err
-		}
-
-		// Re-read to return current state
-		if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&existingUser).Error; err != nil {
 			return nil, err
 		}
 	}
