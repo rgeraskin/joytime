@@ -206,5 +206,18 @@ func (r *UpdateRewardRequest) Validate() error {
 	return validateTokensOptional(r.Tokens)
 }
 
-// UpdatePenaltyRequest has the same fields as UpdateRewardRequest.
-type UpdatePenaltyRequest = UpdateRewardRequest
+type UpdatePenaltyRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Tokens      *int   `json:"tokens"`
+}
+
+func (r *UpdatePenaltyRequest) Validate() error {
+	if err := validateName(r.Name, false); err != nil {
+		return err
+	}
+	if err := validateDescription(r.Description); err != nil {
+		return err
+	}
+	return validateTokensOptional(r.Tokens)
+}
