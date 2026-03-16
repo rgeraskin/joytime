@@ -515,9 +515,14 @@ func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
 }
 
-// isDuplicateKey checks if a DB error is a unique constraint violation (PostgreSQL SQLSTATE 23505)
+// isDuplicateKey checks if a DB error is a unique constraint violation.
+// Handles both PostgreSQL (SQLSTATE 23505) and SQLite (UNIQUE constraint failed).
 func isDuplicateKey(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "23505")
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "23505") || strings.Contains(msg, "UNIQUE constraint failed")
 }
 
 // numberGrid builds a grid of numbered buttons with placeholder padding.
