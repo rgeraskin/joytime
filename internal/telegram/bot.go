@@ -17,20 +17,20 @@ import (
 
 // Input states for multi-step conversation flows (text input only)
 const (
-	stateJoinFamily       = "join_family"
-	stateAddTaskName      = "add_task_name"
-	stateAddTaskBulk      = "add_task_bulk"
-	stateAddTaskTokens    = "add_task_tokens"
-	stateEditTaskTokens   = "edit_task_tokens"
-	stateReviewConfirm    = "review_confirm"
-	stateAddRewardBulk    = "add_reward_bulk"
-	stateAddRewardName    = "add_reward_name"
-	stateAddRewardTokens  = "add_reward_tokens"
-	stateEditRewardTokens = "edit_reward_tokens"
-	stateAddPenaltyName   = "add_penalty_name"
-	stateAddPenaltyTokens = "add_penalty_tokens"
-	stateAddPenaltyBulk   = "add_penalty_bulk"
-	stateEditPenaltyTokens = "edit_penalty_tokens"
+	stateJoinFamily         = "join_family"
+	stateAddTaskName        = "add_task_name"
+	stateAddTaskBulk        = "add_task_bulk"
+	stateAddTaskTokens      = "add_task_tokens"
+	stateEditTaskTokens     = "edit_task_tokens"
+	stateReviewConfirm      = "review_confirm"
+	stateAddRewardBulk      = "add_reward_bulk"
+	stateAddRewardName      = "add_reward_name"
+	stateAddRewardTokens    = "add_reward_tokens"
+	stateEditRewardTokens   = "edit_reward_tokens"
+	stateAddPenaltyName     = "add_penalty_name"
+	stateAddPenaltyTokens   = "add_penalty_tokens"
+	stateAddPenaltyBulk     = "add_penalty_bulk"
+	stateEditPenaltyTokens  = "edit_penalty_tokens"
 	stateApplyPenaltyChild  = "apply_penalty_child"
 	stateManualAdjustReason = "manual_adjust_reason"
 	stateManualAdjustTokens = "manual_adjust_tokens"
@@ -517,6 +517,60 @@ func parseNumber(text string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(text))
 }
 
+// bulkItem is a parsed name+tokens pair from bulk input text.
+type bulkItem struct {
+	Name   string
+	Tokens int
+}
+
+// parseBulkInput parses multi-line "name tokens" text into items and parse errors.
+func parseBulkInput(text string) (items []bulkItem, errs []string) {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		lastSpace := strings.LastIndex(line, " ")
+		if lastSpace < 0 {
+			errs = append(errs, fmt.Sprintf("'%s' — нет токенов", line))
+			continue
+		}
+		name := strings.TrimSpace(line[:lastSpace])
+		tokensStr := strings.TrimSpace(line[lastSpace+1:])
+		tokens, err := parseNumber(tokensStr)
+		if err != nil || name == "" {
+			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
+			continue
+		}
+		items = append(items, bulkItem{Name: name, Tokens: tokens})
+	}
+	return items, errs
+}
+
+// formatBulkResult formats the added/errors summary for bulk operations.
+func formatBulkResult(added, errs []string, emptyMsg string) string {
+	var sb strings.Builder
+	if len(added) > 0 {
+		sb.WriteString(fmt.Sprintf("Добавлено %d:\n", len(added)))
+		for _, a := range added {
+			sb.WriteString("  + " + a + "\n")
+		}
+	}
+	if len(errs) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Ошибки:\n")
+		for _, e := range errs {
+			sb.WriteString("  - " + e + "\n")
+		}
+	}
+	if len(added) == 0 && len(errs) == 0 {
+		sb.WriteString(emptyMsg)
+	}
+	return sb.String()
+}
+
 // isDuplicateKey checks if a DB error is a unique constraint violation.
 // Handles both PostgreSQL (SQLSTATE 23505) and SQLite (UNIQUE constraint failed).
 func isDuplicateKey(err error) bool {
@@ -551,4 +605,3 @@ func numberGrid(count int, callbackPrefix string) [][]tele.InlineButton {
 	}
 	return rows
 }
-

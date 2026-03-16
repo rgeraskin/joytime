@@ -165,71 +165,30 @@ func (b *Bot) onAddTaskBulk(c tele.Context, text string) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	lines := strings.Split(text, "\n")
+	items, errs := parseBulkInput(text)
 	var added []string
-	var errs []string
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		lastSpace := strings.LastIndex(line, " ")
-		if lastSpace < 0 {
-			errs = append(errs, fmt.Sprintf("'%s' — нет токенов", line))
-			continue
-		}
-
-		name := strings.TrimSpace(line[:lastSpace])
-		tokensStr := strings.TrimSpace(line[lastSpace+1:])
-		tokens, err := parseNumber(tokensStr)
-		if err != nil || name == "" {
-			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
-			continue
-		}
-
+	for _, item := range items {
 		task := &models.Tasks{
 			Entities: models.Entities{
 				FamilyUID: auth.FamilyUID,
-				Name:      name,
-				Tokens:    tokens,
+				Name:      item.Name,
+				Tokens:    item.Tokens,
 			},
 		}
 		if err := b.services.TaskService.CreateTask(bgCtx(), auth, task); err != nil {
 			if isDuplicateKey(err) {
-				errs = append(errs, fmt.Sprintf("'%s' — уже существует", name))
+				errs = append(errs, fmt.Sprintf("'%s' — уже существует", item.Name))
 			} else {
-				errs = append(errs, fmt.Sprintf("'%s' — ошибка", name))
+				errs = append(errs, fmt.Sprintf("'%s' — ошибка", item.Name))
 			}
 			continue
 		}
-		added = append(added, fmt.Sprintf("%s: %d 💎", name, tokens))
+		added = append(added, fmt.Sprintf("%s: %d 💎", item.Name, item.Tokens))
 	}
 
 	b.clearState(c.Sender().ID)
 
-	var sb strings.Builder
-	if len(added) > 0 {
-		sb.WriteString(fmt.Sprintf("Добавлено %d:\n", len(added)))
-		for _, a := range added {
-			sb.WriteString("  + " + a + "\n")
-		}
-	}
-	if len(errs) > 0 {
-		if sb.Len() > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString("Ошибки:\n")
-		for _, e := range errs {
-			sb.WriteString("  - " + e + "\n")
-		}
-	}
-	if len(added) == 0 && len(errs) == 0 {
-		sb.WriteString("Не найдено заданий для добавления")
-	}
-
-	if err := c.Send(sb.String()); err != nil {
+	if err := c.Send(formatBulkResult(added, errs, "Не найдено заданий для добавления")); err != nil {
 		return err
 	}
 
@@ -468,71 +427,30 @@ func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	lines := strings.Split(text, "\n")
+	items, errs := parseBulkInput(text)
 	var added []string
-	var errs []string
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		lastSpace := strings.LastIndex(line, " ")
-		if lastSpace < 0 {
-			errs = append(errs, fmt.Sprintf("'%s' — нет токенов", line))
-			continue
-		}
-
-		name := strings.TrimSpace(line[:lastSpace])
-		tokensStr := strings.TrimSpace(line[lastSpace+1:])
-		tokens, err := parseNumber(tokensStr)
-		if err != nil || name == "" {
-			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
-			continue
-		}
-
+	for _, item := range items {
 		reward := &models.Rewards{
 			Entities: models.Entities{
 				FamilyUID: auth.FamilyUID,
-				Name:      name,
-				Tokens:    tokens,
+				Name:      item.Name,
+				Tokens:    item.Tokens,
 			},
 		}
 		if err := b.services.RewardService.CreateReward(bgCtx(), auth, reward); err != nil {
 			if isDuplicateKey(err) {
-				errs = append(errs, fmt.Sprintf("'%s' — уже существует", name))
+				errs = append(errs, fmt.Sprintf("'%s' — уже существует", item.Name))
 			} else {
-				errs = append(errs, fmt.Sprintf("'%s' — ошибка", name))
+				errs = append(errs, fmt.Sprintf("'%s' — ошибка", item.Name))
 			}
 			continue
 		}
-		added = append(added, fmt.Sprintf("%s: %d 💎", name, tokens))
+		added = append(added, fmt.Sprintf("%s: %d 💎", item.Name, item.Tokens))
 	}
 
 	b.clearState(c.Sender().ID)
 
-	var sb strings.Builder
-	if len(added) > 0 {
-		sb.WriteString(fmt.Sprintf("Добавлено %d:\n", len(added)))
-		for _, a := range added {
-			sb.WriteString("  + " + a + "\n")
-		}
-	}
-	if len(errs) > 0 {
-		if sb.Len() > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString("Ошибки:\n")
-		for _, e := range errs {
-			sb.WriteString("  - " + e + "\n")
-		}
-	}
-	if len(added) == 0 && len(errs) == 0 {
-		sb.WriteString("Не найдено наград для добавления")
-	}
-
-	if err := c.Send(sb.String()); err != nil {
+	if err := c.Send(formatBulkResult(added, errs, "Не найдено наград для добавления")); err != nil {
 		return err
 	}
 
@@ -768,71 +686,30 @@ func (b *Bot) onAddPenaltyBulk(c tele.Context, text string) error {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	lines := strings.Split(text, "\n")
+	items, errs := parseBulkInput(text)
 	var added []string
-	var errs []string
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		lastSpace := strings.LastIndex(line, " ")
-		if lastSpace < 0 {
-			errs = append(errs, fmt.Sprintf("'%s' — нет токенов", line))
-			continue
-		}
-
-		name := strings.TrimSpace(line[:lastSpace])
-		tokensStr := strings.TrimSpace(line[lastSpace+1:])
-		tokens, err := parseNumber(tokensStr)
-		if err != nil || name == "" {
-			errs = append(errs, fmt.Sprintf("'%s' — неверный формат", line))
-			continue
-		}
-
+	for _, item := range items {
 		penalty := &models.Penalties{
 			Entities: models.Entities{
 				FamilyUID: auth.FamilyUID,
-				Name:      name,
-				Tokens:    tokens,
+				Name:      item.Name,
+				Tokens:    item.Tokens,
 			},
 		}
 		if err := b.services.PenaltyService.CreatePenalty(bgCtx(), auth, penalty); err != nil {
 			if isDuplicateKey(err) {
-				errs = append(errs, fmt.Sprintf("'%s' — уже существует", name))
+				errs = append(errs, fmt.Sprintf("'%s' — уже существует", item.Name))
 			} else {
-				errs = append(errs, fmt.Sprintf("'%s' — ошибка", name))
+				errs = append(errs, fmt.Sprintf("'%s' — ошибка", item.Name))
 			}
 			continue
 		}
-		added = append(added, fmt.Sprintf("%s: %d 💎", name, tokens))
+		added = append(added, fmt.Sprintf("%s: %d 💎", item.Name, item.Tokens))
 	}
 
 	b.clearState(c.Sender().ID)
 
-	var sb strings.Builder
-	if len(added) > 0 {
-		sb.WriteString(fmt.Sprintf("Добавлено %d:\n", len(added)))
-		for _, a := range added {
-			sb.WriteString("  + " + a + "\n")
-		}
-	}
-	if len(errs) > 0 {
-		if sb.Len() > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString("Ошибки:\n")
-		for _, e := range errs {
-			sb.WriteString("  - " + e + "\n")
-		}
-	}
-	if len(added) == 0 && len(errs) == 0 {
-		sb.WriteString("Не найдено штрафов для добавления")
-	}
-
-	if err := c.Send(sb.String()); err != nil {
+	if err := c.Send(formatBulkResult(added, errs, "Не найдено штрафов для добавления")); err != nil {
 		return err
 	}
 
