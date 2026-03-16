@@ -7,6 +7,12 @@ import (
 )
 
 func Fill(db *gorm.DB) error {
+	return db.Transaction(func(db *gorm.DB) error {
+		return fillData(db)
+	})
+}
+
+func fillData(db *gorm.DB) error {
 	// Create family first
 	family := models.Families{
 		Name:            "Family 1",
