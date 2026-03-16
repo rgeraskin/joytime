@@ -219,10 +219,10 @@ func (b *Bot) onRenameMemberName(c tele.Context, newName, targetUserID string) e
 		return b.internalError(c, "Error updating user", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("✅ Имя изменено!"); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 	return b.showFamilyMembers(c)
 }
 
@@ -411,8 +411,6 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 		return b.internalError(c, "Error adjusting tokens", err)
 	}
 
-	b.clearState(c.Sender().ID)
-
 	child, _ := b.services.UserService.FindUser(bgCtx(), childUserID)
 	childName := childUserID
 	if child != nil {
@@ -426,6 +424,7 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 	if err := c.Send(fmt.Sprintf("✅ Коррекция: %s%d 💎 для %s\n\nПричина: %s", sign, tokens, childName, reason)); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 
 	// Notify child
 	b.notifyChild(childUserID,

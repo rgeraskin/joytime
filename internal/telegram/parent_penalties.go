@@ -78,10 +78,10 @@ func (b *Bot) onAddPenaltyTokens(c tele.Context, text, penaltyName string) error
 		return b.internalError(c, "Error creating penalty", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("✅ Штраф добавлен!"); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 
 	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("⚠️ Новый штраф: %s (%d 💎)", penaltyName, tokens))
 
@@ -128,11 +128,10 @@ func (b *Bot) onAddPenaltyBulk(c tele.Context, text string) error {
 		added = append(added, formatEntityItem(item.Name, item.Tokens))
 	}
 
-	b.clearState(c.Sender().ID)
-
 	if err := c.Send(formatBulkResult(added, errs, "Не найдено штрафов для добавления")); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 
 	if len(added) > 0 {
 		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("⚠️ Добавлено %d новых штрафов", len(added)))
@@ -210,10 +209,10 @@ func (b *Bot) onEditPenaltyTokens(c tele.Context, text, penaltyName string) erro
 		return b.internalError(c, "Error updating penalty", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("✅ Штраф изменен!"); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 	return b.showPenalties(c)
 }
 

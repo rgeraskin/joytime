@@ -81,10 +81,10 @@ func (b *Bot) onAddRewardTokens(c tele.Context, text, rewardName string) error {
 		return b.internalError(c, "Error creating reward", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("✅ Награда добавлена!"); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 
 	b.notifyChildren(auth.FamilyUID, fmt.Sprintf("🎁 Новая награда: %s (%d 💎)", rewardName, tokens))
 
@@ -131,11 +131,10 @@ func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
 		added = append(added, formatEntityItem(item.Name, item.Tokens))
 	}
 
-	b.clearState(c.Sender().ID)
-
 	if err := c.Send(formatBulkResult(added, errs, "Не найдено наград для добавления")); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 
 	if len(added) > 0 {
 		b.notifyChildren(auth.FamilyUID, fmt.Sprintf("🎁 Добавлено %d новых наград", len(added)))
@@ -213,10 +212,10 @@ func (b *Bot) onEditRewardTokens(c tele.Context, text, rewardName string) error 
 		return b.internalError(c, "Error updating reward", err)
 	}
 
-	b.clearState(c.Sender().ID)
 	if err := c.Send("✅ Награда изменена!"); err != nil {
 		return err
 	}
+	b.clearState(c.Sender().ID)
 	return b.showRewards(c)
 }
 
