@@ -139,6 +139,12 @@ func TestValidateTokenTransaction(t *testing.T) {
 	t.Run("invalid type", func(t *testing.T) {
 		assert.ErrorIs(t, ValidateTokenTransaction(10, "bogus", ""), ErrValidation)
 	})
+	t.Run("task_completed not allowed via API", func(t *testing.T) {
+		assert.ErrorIs(t, ValidateTokenTransaction(10, TokenTypeTaskCompleted, ""), ErrValidation)
+	})
+	t.Run("reward_claimed not allowed via API", func(t *testing.T) {
+		assert.ErrorIs(t, ValidateTokenTransaction(-10, TokenTypeRewardClaimed, ""), ErrValidation)
+	})
 }
 
 func TestUpdateRequestValidation(t *testing.T) {

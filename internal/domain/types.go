@@ -143,8 +143,8 @@ func ValidateTokenTransaction(amount int, tokenType, description string) error {
 	if tokenType == "" {
 		return validationErr("type is required")
 	}
-	if tokenType != TokenTypeTaskCompleted && tokenType != TokenTypeRewardClaimed && tokenType != TokenTypeManualAdjustment {
-		return validationErr("invalid token type")
+	if tokenType != TokenTypeManualAdjustment {
+		return validationErr("invalid token type: only manual_adjustment allowed")
 	}
 	return validateDescription(description)
 }
