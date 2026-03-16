@@ -163,6 +163,7 @@ func (s *TaskService) CompleteTask(
 				"Задание: "+task.Name,
 				&taskID,
 				nil,
+				nil,
 			); err != nil {
 				return err
 			}

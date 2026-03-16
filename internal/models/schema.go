@@ -71,8 +71,9 @@ type TokenHistory struct {
 	gorm.Model
 	UserID      string `json:"user_id" gorm:"index"`
 	Amount      int    `json:"amount"`      // Положительное - заработал, отрицательное - потратил
-	Type        string `json:"type"`        // task_completed, reward_claimed, manual_adjustment
+	Type        string `json:"type"`        // task_completed, reward_claimed, penalty, manual_adjustment
 	Description string `json:"description"` // Описание операции
 	TaskID      *uint  `json:"task_id,omitempty"`
 	RewardID    *uint  `json:"reward_id,omitempty"`
+	PenaltyID   *uint  `json:"penalty_id,omitempty"`
 }

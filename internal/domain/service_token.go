@@ -34,7 +34,7 @@ func (s *TokenService) AddTokensToUser(
 	targetUserID string,
 	amount int,
 	tokenType, description string,
-	taskID, rewardID *uint,
+	taskID, rewardID, penaltyID *uint,
 ) (*models.Tokens, error) {
 	// Get target user to check family and authorization
 	var targetUser models.Users
@@ -48,7 +48,7 @@ func (s *TokenService) AddTokensToUser(
 		return nil, err
 	}
 
-	return s.addTokens(ctx, targetUserID, amount, tokenType, description, taskID, rewardID)
+	return s.addTokens(ctx, targetUserID, amount, tokenType, description, taskID, rewardID, penaltyID)
 }
 
 // addTokens is an internal method that modifies tokens without permission checks.
@@ -59,11 +59,11 @@ func (s *TokenService) addTokens(
 	targetUserID string,
 	amount int,
 	tokenType, description string,
-	taskID, rewardID *uint,
+	taskID, rewardID, penaltyID *uint,
 ) (*models.Tokens, error) {
 	var result *models.Tokens
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tokens, err := s.addTokensInTx(tx, targetUserID, amount, tokenType, description, taskID, rewardID)
+		tokens, err := s.addTokensInTx(tx, targetUserID, amount, tokenType, description, taskID, rewardID, penaltyID)
 		if err != nil {
 			return err
 		}
@@ -81,7 +81,7 @@ func (s *TokenService) addTokensInTx(
 	targetUserID string,
 	amount int,
 	tokenType, description string,
-	taskID, rewardID *uint,
+	taskID, rewardID, penaltyID *uint,
 ) (*models.Tokens, error) {
 	var tokens models.Tokens
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -112,6 +112,7 @@ func (s *TokenService) addTokensInTx(
 		Description: description,
 		TaskID:      taskID,
 		RewardID:    rewardID,
+		PenaltyID:   penaltyID,
 	}
 	if err := tx.Create(&history).Error; err != nil {
 		return nil, err
@@ -212,6 +213,7 @@ func (s *TokenService) ClaimReward(
 			"Награда: "+reward.Name,
 			nil,
 			&rewardID,
+			nil,
 		)
 		return err
 	})

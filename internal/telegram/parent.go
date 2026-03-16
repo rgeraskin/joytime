@@ -1513,7 +1513,7 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 
 	_, err = b.services.TokenService.AddTokensToUser(
 		bgCtx(), auth, childUserID, tokens,
-		domain.TokenTypeManualAdjustment, "Коррекция: "+reason, nil, nil,
+		domain.TokenTypeManualAdjustment, "Коррекция: "+reason, nil, nil, nil,
 	)
 	if err != nil {
 		if errors.Is(err, domain.ErrInsufficientTokens) {

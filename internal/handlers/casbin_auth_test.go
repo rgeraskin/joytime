@@ -191,6 +191,7 @@ func TestCasbinParentPermissions(t *testing.T) {
 			"Parent bonus",
 			nil,
 			nil,
+			nil,
 		)
 		assert.NoError(t, err)
 
@@ -371,6 +372,7 @@ func TestCasbinChildPermissions(t *testing.T) {
 			100,
 			domain.TokenTypeManualAdjustment,
 			"Child trying to cheat",
+			nil,
 			nil,
 			nil,
 		)

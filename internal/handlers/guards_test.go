@@ -80,7 +80,7 @@ func TestNegativeBalanceBlocked(t *testing.T) {
 		// Child has 50 tokens from setup
 		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(), parentCtx, child.UserID,
-			-51, domain.TokenTypeManualAdjustment, "Over-deduction", nil, nil,
+			-51, domain.TokenTypeManualAdjustment, "Over-deduction", nil, nil, nil,
 		)
 		assert.ErrorIs(t, err, domain.ErrInsufficientTokens)
 
@@ -95,7 +95,7 @@ func TestNegativeBalanceBlocked(t *testing.T) {
 	t.Run("Can deduct exact balance", func(t *testing.T) {
 		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(), parentCtx, child.UserID,
-			-50, domain.TokenTypeManualAdjustment, "Exact deduction", nil, nil,
+			-50, domain.TokenTypeManualAdjustment, "Exact deduction", nil, nil, nil,
 		)
 		assert.NoError(t, err)
 
@@ -294,7 +294,7 @@ func TestTokenHistoryAccess(t *testing.T) {
 	// Add tokens via service to create history
 	_, err := testHandler.services.TokenService.AddTokensToUser(
 		context.Background(), parentCtx, child.UserID,
-		50, domain.TokenTypeManualAdjustment, "Initial bonus", nil, nil,
+		50, domain.TokenTypeManualAdjustment, "Initial bonus", nil, nil, nil,
 	)
 	require.NoError(t, err)
 
@@ -322,7 +322,7 @@ func TestTokenHistoryAccess(t *testing.T) {
 		// Add more tokens to create a second entry
 		_, err := testHandler.services.TokenService.AddTokensToUser(
 			context.Background(), parentCtx, child.UserID,
-			10, domain.TokenTypeManualAdjustment, "Second bonus", nil, nil,
+			10, domain.TokenTypeManualAdjustment, "Second bonus", nil, nil, nil,
 		)
 		require.NoError(t, err)
 
@@ -406,7 +406,7 @@ func TestDeleteUserCascadesToTokensAndHistory(t *testing.T) {
 	// Child has 50 tokens from setup; add more to create history
 	_, err := testHandler.services.TokenService.AddTokensToUser(
 		context.Background(), parentCtx, child.UserID,
-		10, domain.TokenTypeManualAdjustment, "Test bonus", nil, nil,
+		10, domain.TokenTypeManualAdjustment, "Test bonus", nil, nil, nil,
 	)
 	require.NoError(t, err)
 

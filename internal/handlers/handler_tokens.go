@@ -86,6 +86,7 @@ func (h *APIHandler) updateUserTokens(w http.ResponseWriter, r *http.Request, au
 		update.Description,
 		update.TaskID,
 		update.RewardID,
+		nil,
 	)
 	if err != nil {
 		h.respondServiceError(w, err, "failed to update user tokens")

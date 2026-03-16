@@ -159,6 +159,7 @@ func (s *PenaltyService) ApplyPenalty(
 		return nil, err
 	}
 
+	penaltyID := penalty.ID
 	if _, err := s.tokens.addTokens(
 		ctx,
 		childUserID,
@@ -167,6 +168,7 @@ func (s *PenaltyService) ApplyPenalty(
 		"Штраф: "+penalty.Name,
 		nil,
 		nil,
+		&penaltyID,
 	); err != nil {
 		return nil, err
 	}
