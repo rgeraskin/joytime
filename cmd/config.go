@@ -67,8 +67,9 @@ func (c *Config) validate() error {
 		if c.DB.Port == "" {
 			return fmt.Errorf("PGPORT environment variable is required for postgres")
 		}
-		if _, err := strconv.Atoi(c.DB.Port); err != nil {
-			return fmt.Errorf("PGPORT must be a valid port number")
+		port, err := strconv.Atoi(c.DB.Port)
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("PGPORT must be a valid port number (1-65535)")
 		}
 		if c.DB.Database == "" {
 			return fmt.Errorf("PGDATABASE environment variable is required for postgres")
