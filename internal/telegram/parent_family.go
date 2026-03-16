@@ -411,9 +411,8 @@ func (b *Bot) onManualAdjustTokens(c tele.Context, text, inputCtx string) error 
 		return b.internalError(c, "Error adjusting tokens", err)
 	}
 
-	child, _ := b.services.UserService.FindUser(bgCtx(), childUserID)
 	childName := childUserID
-	if child != nil {
+	if child, _ := b.services.UserService.FindUser(bgCtx(), childUserID); child != nil {
 		childName = child.Name
 	}
 

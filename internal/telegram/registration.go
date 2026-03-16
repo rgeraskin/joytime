@@ -116,13 +116,8 @@ func (b *Bot) onInviteJoinText(c tele.Context, code string) error {
 	if invite.Role == string(domain.RoleChild) {
 		roleName = "ребёнок"
 	}
-	user, _ := b.findUser(c.Sender().ID)
-	userName := extractName(c.Sender())
-	if user != nil {
-		userName = user.Name
-	}
 	b.notifyParents(invite.FamilyUID, c.Sender().ID,
-		fmt.Sprintf("👋 %s присоединился к семье (%s)", userName, roleName))
+		fmt.Sprintf("👋 %s присоединился к семье (%s)", b.getUserDisplayName(c), roleName))
 
 	if invite.Role == string(domain.RoleChild) {
 		return b.showChildMenu(c)

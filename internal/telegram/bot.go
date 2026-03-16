@@ -405,6 +405,15 @@ func (b *Bot) setState(tgID int64, state, inputCtx string) error {
 	return b.services.UserService.SetInputState(bgCtx(), makeUserID(tgID), state, inputCtx)
 }
 
+// getUserDisplayName returns the user's name from DB, falling back to Telegram profile name.
+func (b *Bot) getUserDisplayName(c tele.Context) string {
+	user, _ := b.findUser(c.Sender().ID)
+	if user != nil {
+		return user.Name
+	}
+	return extractName(c.Sender())
+}
+
 func (b *Bot) internalError(c tele.Context, msg string, err error) error {
 	b.logger.Error(msg, "error", err, "tg_id", c.Sender().ID)
 	return c.Send("❌ Внутренняя ошибка. Попробуй /start")

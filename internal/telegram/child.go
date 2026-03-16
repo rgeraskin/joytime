@@ -147,13 +147,8 @@ func (b *Bot) onTaskDonePick(c tele.Context, num int) error {
 	}
 
 	// Notify parents
-	user, _ := b.findUser(c.Sender().ID)
-	childName := extractName(c.Sender())
-	if user != nil {
-		childName = user.Name
-	}
 	b.notifyParents(auth.FamilyUID, c.Sender().ID,
-		fmt.Sprintf("📋 %s выполнил задание: %s (%d 💎)", childName, task.Name, task.Tokens))
+		fmt.Sprintf("📋 %s выполнил задание: %s (%d 💎)", b.getUserDisplayName(c), task.Name, task.Tokens))
 
 	return b.showChildMenu(c)
 }
@@ -215,13 +210,8 @@ func (b *Bot) onRewardClaimPick(c tele.Context, num int) error {
 	}
 
 	// Notify parents
-	user, _ := b.findUser(c.Sender().ID)
-	childName := extractName(c.Sender())
-	if user != nil {
-		childName = user.Name
-	}
 	b.notifyParents(auth.FamilyUID, c.Sender().ID,
-		fmt.Sprintf("🎁 %s получил награду: %s (%d 💎)", childName, reward.Name, reward.Tokens))
+		fmt.Sprintf("🎁 %s получил награду: %s (%d 💎)", b.getUserDisplayName(c), reward.Name, reward.Tokens))
 
 	return b.showChildMenu(c)
 }
