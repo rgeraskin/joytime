@@ -12,7 +12,7 @@ func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		switch r.Method {
 		case http.MethodGet:
-			h.listFamilies(w, r, authCtx)
+			h.getOwnFamily(w, r, authCtx)
 		case http.MethodPost:
 			h.createFamily(w, r, authCtx)
 		default:
@@ -40,7 +40,7 @@ func (h *APIHandler) handleFamily(w http.ResponseWriter, r *http.Request) {
 	})(w, r)
 }
 
-func (h *APIHandler) listFamilies(
+func (h *APIHandler) getOwnFamily(
 	w http.ResponseWriter,
 	r *http.Request,
 	authCtx *domain.AuthContext,
