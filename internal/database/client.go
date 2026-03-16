@@ -88,7 +88,9 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 	for _, table := range []string{"tasks", "rewards", "penalties"} {
 		// Drop the old GORM-generated non-partial unique index (table-specific name)
 		oldIdx := fmt.Sprintf("idx_%s_name", table)
-		db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS %s`, oldIdx))
+		if err := db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS %s`, oldIdx)).Error; err != nil {
+			return nil, fmt.Errorf("failed to drop old index %s: %w", oldIdx, err)
+		}
 
 		idx := fmt.Sprintf("idx_%s_family_name_active", table)
 		sql := fmt.Sprintf(
