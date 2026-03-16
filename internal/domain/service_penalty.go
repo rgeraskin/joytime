@@ -63,6 +63,19 @@ func (s *PenaltyService) GetPenaltiesForFamily(
 	return penalties, err
 }
 
+// GetPenalty retrieves a single penalty by family and name
+func (s *PenaltyService) GetPenalty(
+	ctx context.Context,
+	authCtx *AuthContext,
+	familyUID, penaltyName string,
+) (*models.Penalties, error) {
+	if err := s.auth.RequirePermission(authCtx, "penalties", "read", familyUID); err != nil {
+		return nil, err
+	}
+
+	return findByFamilyAndName[models.Penalties](s.db, ctx, familyUID, penaltyName)
+}
+
 // UpdatePenalty updates a penalty
 func (s *PenaltyService) UpdatePenalty(
 	ctx context.Context,
