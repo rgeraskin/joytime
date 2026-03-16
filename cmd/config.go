@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/database"
@@ -65,6 +66,9 @@ func (c *Config) validate() error {
 		}
 		if c.DB.Port == "" {
 			return fmt.Errorf("PGPORT environment variable is required for postgres")
+		}
+		if _, err := strconv.Atoi(c.DB.Port); err != nil {
+			return fmt.Errorf("PGPORT must be a valid port number")
 		}
 		if c.DB.Database == "" {
 			return fmt.Errorf("PGDATABASE environment variable is required for postgres")
