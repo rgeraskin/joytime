@@ -187,18 +187,28 @@ func (s *TaskService) RejectTask(
 		return nil, err
 	}
 
-	task, err := findByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
+	var task *models.Tasks
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var t models.Tasks
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("family_uid = ? AND name = ?", familyUID, taskName).
+			First(&t).Error; err != nil {
+			return err
+		}
+
+		if t.Status != TaskStatusCheck {
+			return ErrTaskInvalidForReview
+		}
+
+		t.Status = TaskStatusNew
+		t.AssignedToUserID = ""
+		if err := tx.Select("status", "assigned_to_user_id").Save(&t).Error; err != nil {
+			return err
+		}
+		task = &t
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if task.Status != TaskStatusCheck {
-		return nil, ErrTaskInvalidForReview
-	}
-
-	task.Status = TaskStatusNew
-	task.AssignedToUserID = ""
-	if err := s.db.WithContext(ctx).Select("status", "assigned_to_user_id").Save(task).Error; err != nil {
 		return nil, err
 	}
 
