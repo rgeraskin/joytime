@@ -32,6 +32,12 @@ func sanitizeReward(reward *models.Rewards) {
 	reward.FamilyUID = sanitizeInput(reward.FamilyUID)
 }
 
+func sanitizePenalty(penalty *models.Penalties) {
+	penalty.Name = sanitizeInput(penalty.Name)
+	penalty.Description = sanitizeInput(penalty.Description)
+	penalty.FamilyUID = sanitizeInput(penalty.FamilyUID)
+}
+
 func sanitizeTokenAddRequest(req *TokenAddRequest) {
 	req.UserID = sanitizeInput(req.UserID)
 	req.Type = sanitizeInput(req.Type)
@@ -60,6 +66,15 @@ func validateRewardCreate(reward *models.Rewards) error {
 		return fmt.Errorf("%w: family_uid is required", domain.ErrValidation)
 	}
 	return domain.ValidateEntityCreate(reward.Name, reward.Description, reward.Tokens)
+}
+
+// validatePenaltyCreate sanitizes and validates a penalty creation request.
+func validatePenaltyCreate(penalty *models.Penalties) error {
+	sanitizePenalty(penalty)
+	if penalty.FamilyUID == "" {
+		return fmt.Errorf("%w: family_uid is required", domain.ErrValidation)
+	}
+	return domain.ValidateEntityCreate(penalty.Name, penalty.Description, penalty.Tokens)
 }
 
 // validateTokenAddRequest sanitizes and validates a token transaction request.
