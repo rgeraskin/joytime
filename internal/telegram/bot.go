@@ -550,14 +550,3 @@ func numberGrid(count int, callbackPrefix string) [][]tele.InlineButton {
 	return rows
 }
 
-// escapeMarkdownV2 escapes special characters for Telegram MarkdownV2
-func escapeMarkdownV2(s string) string {
-	replacer := strings.NewReplacer(
-		"_", "\\_", "*", "\\*", "[", "\\[", "]", "\\]",
-		"(", "\\(", ")", "\\)", "~", "\\~", "`", "\\`",
-		">", "\\>", "#", "\\#", "+", "\\+", "-", "\\-",
-		"=", "\\=", "|", "\\|", "{", "\\{", "}", "\\}",
-		".", "\\.", "!", "\\!",
-	)
-	return replacer.Replace(s)
-}
