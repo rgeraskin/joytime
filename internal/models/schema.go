@@ -9,7 +9,7 @@ type Families struct {
 	Name            string         `json:"name"`
 	UID             string         `json:"uid"                gorm:"uniqueIndex"`
 	CreatedByUserID string         `json:"created_by_user_id" gorm:"index"`
-	DeletedAt       gorm.DeletedAt `json:"-"`
+	DeletedAt       gorm.DeletedAt `json:"-"` // override gorm.Model to hide from JSON
 }
 
 type Users struct {
@@ -19,20 +19,20 @@ type Users struct {
 	Role      string         `json:"role"`
 	FamilyUID string         `json:"family_uid"  gorm:"index"`
 	Platform  string         `json:"platform"    gorm:"default:telegram"` // telegram, web, mobile, etc.
-	DeletedAt gorm.DeletedAt `json:"-"`
+	DeletedAt gorm.DeletedAt `json:"-"`                                   // override gorm.Model to hide from JSON
 	// Поля для состояния ввода текста (универсальные)
 	InputState   string `json:"input_state"`   // Что пользователь сейчас вводит
 	InputContext string `json:"input_context"` // Контекст ввода
 }
 
 type Entities struct {
-	// entities are tasks or rewards
+	// Entities is the base struct for tasks, rewards, and penalties
 	gorm.Model
 	FamilyUID   string         `json:"family_uid"  gorm:"index"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Tokens      int            `json:"tokens"`
-	DeletedAt   gorm.DeletedAt `json:"-"`
+	DeletedAt   gorm.DeletedAt `json:"-"` // override gorm.Model to hide from JSON
 }
 
 type Tasks struct {
@@ -53,7 +53,7 @@ type Tokens struct {
 	gorm.Model
 	UserID    string         `json:"user_id" gorm:"uniqueIndex"`
 	Tokens    int            `json:"tokens" gorm:"default:0"`
-	DeletedAt gorm.DeletedAt `json:"-"`
+	DeletedAt gorm.DeletedAt `json:"-"` // override gorm.Model to hide from JSON
 }
 
 // Invites stores one-time invite codes for joining families
