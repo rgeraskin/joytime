@@ -142,6 +142,15 @@ func (s *PenaltyService) ApplyPenalty(
 		return nil, err
 	}
 
+	// Verify the child belongs to the same family
+	var child models.Users
+	if err := s.db.WithContext(ctx).Where("user_id = ?", childUserID).First(&child).Error; err != nil {
+		return nil, err
+	}
+	if child.FamilyUID != familyUID {
+		return nil, ErrUnauthorized
+	}
+
 	var penalty models.Penalties
 	err := s.db.WithContext(ctx).
 		Where("family_uid = ? AND name = ?", familyUID, penaltyName).
