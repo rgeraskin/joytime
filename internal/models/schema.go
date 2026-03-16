@@ -28,7 +28,7 @@ type Users struct {
 type Entities struct {
 	// entities are tasks or rewards
 	gorm.Model
-	FamilyUID   string         `json:"family_uid"`
+	FamilyUID   string         `json:"family_uid"  gorm:"index"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Tokens      int            `json:"tokens"`
