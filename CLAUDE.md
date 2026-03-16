@@ -73,4 +73,5 @@ Configured via `.env` file (see `.env` or `mise run setup-env`).
 | `PGUSER` | — | PostgreSQL user |
 | `PGPASSWORD` | — | PostgreSQL password |
 | `PGDATABASE` | — | PostgreSQL database name |
+| `PGSSLMODE` | `disable` | PostgreSQL SSL mode (`disable`, `require`, `verify-full`, etc.) |
 | `DEBUG` | — | Enables debug logging if set |
