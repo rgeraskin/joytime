@@ -82,7 +82,7 @@ func (b *Bot) showTasks(c tele.Context) error {
 
 	items := make([]string, len(tasks))
 	for i, t := range tasks {
-		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
+		items[i] = formatEntityItem(t.Name, t.Tokens)
 	}
 
 	msg := formatList("📋 Задания", items)
@@ -183,7 +183,7 @@ func (b *Bot) onAddTaskBulk(c tele.Context, text string) error {
 			}
 			continue
 		}
-		added = append(added, fmt.Sprintf("%s: %d 💎", item.Name, item.Tokens))
+		added = append(added, formatEntityItem(item.Name, item.Tokens))
 	}
 
 	b.clearState(c.Sender().ID)
@@ -218,7 +218,7 @@ func (b *Bot) onEditTaskPrompt(c tele.Context) error {
 
 	items := make([]string, len(tasks))
 	for i, t := range tasks {
-		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
+		items[i] = formatEntityItem(t.Name, t.Tokens)
 	}
 
 	msg := formatList("Выбери задание для изменения", items)
@@ -294,7 +294,7 @@ func (b *Bot) onDeleteTaskPrompt(c tele.Context) error {
 
 	items := make([]string, len(tasks))
 	for i, t := range tasks {
-		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
+		items[i] = formatEntityItem(t.Name, t.Tokens)
 	}
 
 	msg := formatList("Выбери задание для удаления", items)

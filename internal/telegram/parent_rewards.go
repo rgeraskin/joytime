@@ -24,7 +24,7 @@ func (b *Bot) showRewards(c tele.Context) error {
 
 	items := make([]string, len(rewards))
 	for i, r := range rewards {
-		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
+		items[i] = formatEntityItem(r.Name, r.Tokens)
 	}
 
 	msg := formatList("🎁 Награды", items)
@@ -125,7 +125,7 @@ func (b *Bot) onAddRewardBulk(c tele.Context, text string) error {
 			}
 			continue
 		}
-		added = append(added, fmt.Sprintf("%s: %d 💎", item.Name, item.Tokens))
+		added = append(added, formatEntityItem(item.Name, item.Tokens))
 	}
 
 	b.clearState(c.Sender().ID)
@@ -160,7 +160,7 @@ func (b *Bot) onEditRewardPrompt(c tele.Context) error {
 
 	items := make([]string, len(rewards))
 	for i, r := range rewards {
-		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
+		items[i] = formatEntityItem(r.Name, r.Tokens)
 	}
 
 	msg := formatList("Выбери награду для изменения", items)
@@ -236,7 +236,7 @@ func (b *Bot) onDeleteRewardPrompt(c tele.Context) error {
 
 	items := make([]string, len(rewards))
 	for i, r := range rewards {
-		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
+		items[i] = formatEntityItem(r.Name, r.Tokens)
 	}
 
 	msg := formatList("Выбери награду для удаления", items)

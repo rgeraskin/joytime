@@ -24,7 +24,7 @@ func (b *Bot) showPenalties(c tele.Context) error {
 
 	items := make([]string, len(penalties))
 	for i, p := range penalties {
-		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
+		items[i] = formatEntityItem(p.Name, p.Tokens)
 	}
 
 	msg := formatList("⚠️ Штрафы", items)
@@ -122,7 +122,7 @@ func (b *Bot) onAddPenaltyBulk(c tele.Context, text string) error {
 			}
 			continue
 		}
-		added = append(added, fmt.Sprintf("%s: %d 💎", item.Name, item.Tokens))
+		added = append(added, formatEntityItem(item.Name, item.Tokens))
 	}
 
 	b.clearState(c.Sender().ID)
@@ -157,7 +157,7 @@ func (b *Bot) onEditPenaltyPrompt(c tele.Context) error {
 
 	items := make([]string, len(penalties))
 	for i, p := range penalties {
-		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
+		items[i] = formatEntityItem(p.Name, p.Tokens)
 	}
 
 	msg := formatList("Выбери штраф для изменения", items)
@@ -233,7 +233,7 @@ func (b *Bot) onDeletePenaltyPrompt(c tele.Context) error {
 
 	items := make([]string, len(penalties))
 	for i, p := range penalties {
-		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
+		items[i] = formatEntityItem(p.Name, p.Tokens)
 	}
 
 	msg := formatList("Выбери штраф для удаления", items)
@@ -287,7 +287,7 @@ func (b *Bot) onApplyPenaltyPrompt(c tele.Context) error {
 
 	items := make([]string, len(penalties))
 	for i, p := range penalties {
-		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
+		items[i] = formatEntityItem(p.Name, p.Tokens)
 	}
 
 	msg := formatList("Выбери штраф для применения", items)

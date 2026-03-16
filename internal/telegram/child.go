@@ -62,7 +62,7 @@ func (b *Bot) showChildPenalties(c tele.Context) error {
 
 	items := make([]string, len(penalties))
 	for i, p := range penalties {
-		items[i] = fmt.Sprintf("%s: %d 💎", p.Name, p.Tokens)
+		items[i] = formatEntityItem(p.Name, p.Tokens)
 	}
 
 	msg := formatList("⚠️ Штрафы", items)
@@ -99,7 +99,7 @@ func (b *Bot) onTaskDonePrompt(c tele.Context) error {
 
 	items := make([]string, len(available))
 	for i, t := range available {
-		items[i] = fmt.Sprintf("%s: %d 💎", t.Name, t.Tokens)
+		items[i] = formatEntityItem(t.Name, t.Tokens)
 	}
 
 	msg := formatList("📋 Доступные задания", items)
@@ -177,7 +177,7 @@ func (b *Bot) onRewardClaimPrompt(c tele.Context) error {
 
 	items := make([]string, len(rewards))
 	for i, r := range rewards {
-		items[i] = fmt.Sprintf("%s: %d 💎", r.Name, r.Tokens)
+		items[i] = formatEntityItem(r.Name, r.Tokens)
 	}
 
 	msg := formatList("🎁 Награды", items)

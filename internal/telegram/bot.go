@@ -460,6 +460,11 @@ func (b *Bot) notifyChild(childUserID, message string) {
 	}
 }
 
+// formatEntityItem formats an entity as "Name: N 💎" for display in lists.
+func formatEntityItem(name string, tokens int) string {
+	return fmt.Sprintf("%s: %d 💎", name, tokens)
+}
+
 func formatList(header string, items []string) string {
 	var sb strings.Builder
 	sb.WriteString(header)
