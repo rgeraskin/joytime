@@ -30,7 +30,6 @@ func SetupAPI(services *domain.Services, logger *log.Logger) *http.Server {
 	mux.HandleFunc("/api/v1/tasks/", handler.handleTasksByFamily)
 	mux.HandleFunc("/api/v1/rewards", handler.handleRewards)
 	mux.HandleFunc("/api/v1/rewards/", handler.handleRewardsByFamily)
-	mux.HandleFunc("/api/v1/tokens", handler.handleTokens)
 	mux.HandleFunc("/api/v1/tokens/users/", handler.handleUserTokens)
 	mux.HandleFunc("/api/v1/token-history", handler.handleTokenHistory)
 	mux.HandleFunc("/api/v1/token-history/users/", handler.handleUserTokenHistory)
@@ -52,7 +51,7 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondSuccess(w, http.StatusOK, map[string]string{
-		"status": "healthy",
+		"status":  "healthy",
 		"service": "joytime-api",
 	})
 }

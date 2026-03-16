@@ -300,7 +300,6 @@ func TestNewHandlerNames(t *testing.T) {
 		assert.NotNil(t, testHandler.handleTasksByFamily)
 		assert.NotNil(t, testHandler.handleRewards)
 		assert.NotNil(t, testHandler.handleRewardsByFamily)
-		assert.NotNil(t, testHandler.handleTokens)
 		assert.NotNil(t, testHandler.handleUserTokens)
 		assert.NotNil(t, testHandler.handleTokenHistory)
 		assert.NotNil(t, testHandler.handleUserTokenHistory)
@@ -315,9 +314,9 @@ func TestNewHandlerNames(t *testing.T) {
 	})
 
 	t.Run("Tokens endpoint requires authentication", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/v1/tokens", nil)
+		req := httptest.NewRequest("GET", "/api/v1/tokens/users/someuser", nil)
 		w := httptest.NewRecorder()
-		testHandler.handleTokens(w, req)
+		testHandler.handleUserTokens(w, req)
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }

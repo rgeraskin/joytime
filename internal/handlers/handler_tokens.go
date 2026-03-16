@@ -8,17 +8,6 @@ import (
 )
 
 // Token endpoints
-func (h *APIHandler) handleTokens(w http.ResponseWriter, r *http.Request) {
-	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-		switch r.Method {
-		case http.MethodPost:
-			h.createTokenTransaction(w, r, authCtx)
-		default:
-			h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
-		}
-	})(w, r)
-}
-
 func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
 		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/tokens/users/")
@@ -64,41 +53,6 @@ func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Reque
 			h.respondError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed)
 		}
 	})(w, r)
-}
-
-func (h *APIHandler) createTokenTransaction(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-	var request TokenAddRequest
-	if err := h.decodeJSON(w, r, &request); err != nil {
-		h.respondError(w, http.StatusBadRequest, ErrInvalidJSONFormat)
-		return
-	}
-
-	if err := validateTokenAddRequest(&request); err != nil {
-		h.respondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if request.UserID == "" {
-		h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
-		return
-	}
-
-	err := h.services.TokenService.AddTokensToUser(
-		r.Context(),
-		authCtx,
-		request.UserID,
-		request.Amount,
-		request.Type,
-		request.Description,
-		request.TaskID,
-		request.RewardID,
-	)
-	if err != nil {
-		h.respondServiceError(w, err, "failed to create token transaction")
-		return
-	}
-
-	h.respondSuccess(w, http.StatusCreated, map[string]string{"message": "token transaction completed"})
 }
 
 func (h *APIHandler) getUserTokens(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext, userID string) {
