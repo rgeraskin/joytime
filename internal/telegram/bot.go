@@ -455,6 +455,7 @@ func (b *Bot) notifyChild(childUserID, message string) {
 	tgIDStr := strings.TrimPrefix(childUserID, "user_")
 	tgID, err := strconv.ParseInt(tgIDStr, 10, 64)
 	if err != nil {
+		b.logger.Warn("Failed to parse child user ID for notification", "user_id", childUserID, "error", err)
 		return
 	}
 	if _, err := b.bot.Send(&tele.User{ID: tgID}, message, childMenuKeyboard()); err != nil {
