@@ -158,8 +158,18 @@ func (s *UserService) DeleteUser(
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx.Unscoped().Where("user_id = ?", userID).Delete(&models.TokenHistory{})
-		tx.Unscoped().Where("user_id = ?", userID).Delete(&models.Tokens{})
+		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&models.TokenHistory{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&models.Tokens{}).Error; err != nil {
+			return err
+		}
+		// Reset tasks assigned to this user back to "new" so they don't orphan
+		if err := tx.Model(&models.Tasks{}).
+			Where("assigned_to_user_id = ?", userID).
+			Updates(map[string]any{"assigned_to_user_id": "", "status": TaskStatusNew}).Error; err != nil {
+			return err
+		}
 		return tx.Where("user_id = ?", userID).Delete(&models.Users{}).Error
 	})
 }
