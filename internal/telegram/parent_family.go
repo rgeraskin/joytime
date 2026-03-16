@@ -84,6 +84,17 @@ func (b *Bot) showHistoryForChild(
 	return c.Send(msg, inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
 }
 
+// filterExcludingUser returns all users except the one with excludeUserID.
+func filterExcludingUser(users []models.Users, excludeUserID string) []models.Users {
+	var result []models.Users
+	for _, u := range users {
+		if u.UserID != excludeUserID {
+			result = append(result, u)
+		}
+	}
+	return result
+}
+
 // --- Family management ---
 
 func (b *Bot) showFamilyMembers(c tele.Context) error {
@@ -237,13 +248,7 @@ func (b *Bot) onDeleteMemberPrompt(c tele.Context) error {
 		return b.internalError(c, "Error getting family users", err)
 	}
 
-	// Exclude self from deletion list
-	var others []models.Users
-	for _, u := range users {
-		if u.UserID != auth.UserID {
-			others = append(others, u)
-		}
-	}
+	others := filterExcludingUser(users, auth.UserID)
 
 	if len(others) == 0 {
 		return c.Send(
@@ -274,12 +279,7 @@ func (b *Bot) onDeleteMemberPick(c tele.Context, num int) error {
 		return b.internalError(c, "Error getting family users", err)
 	}
 
-	var others []models.Users
-	for _, u := range users {
-		if u.UserID != auth.UserID {
-			others = append(others, u)
-		}
-	}
+	others := filterExcludingUser(users, auth.UserID)
 
 	if num < 1 || num > len(others) {
 		return c.Send("❌ Неверный номер")
