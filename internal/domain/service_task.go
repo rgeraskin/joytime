@@ -3,7 +3,6 @@ package domain
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
@@ -11,7 +10,6 @@ import (
 // TaskService handles task-related business logic
 type TaskService struct {
 	db     *gorm.DB
-	logger *log.Logger
 	auth   *CasbinAuthService
 	tokens *TokenService
 }
@@ -19,13 +17,11 @@ type TaskService struct {
 // NewTaskService creates a new task service
 func NewTaskService(
 	db *gorm.DB,
-	logger *log.Logger,
 	auth *CasbinAuthService,
 	tokens *TokenService,
 ) *TaskService {
 	return &TaskService{
 		db:     db,
-		logger: logger,
 		auth:   auth,
 		tokens: tokens,
 	}

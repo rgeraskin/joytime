@@ -3,7 +3,6 @@ package domain
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
@@ -14,17 +13,15 @@ const (
 
 // InviteService handles invite code business logic
 type InviteService struct {
-	db     *gorm.DB
-	logger *log.Logger
-	auth   *CasbinAuthService
+	db   *gorm.DB
+	auth *CasbinAuthService
 }
 
 // NewInviteService creates a new invite service
-func NewInviteService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *InviteService {
+func NewInviteService(db *gorm.DB, auth *CasbinAuthService) *InviteService {
 	return &InviteService{
-		db:     db,
-		logger: logger,
-		auth:   auth,
+		db:   db,
+		auth: auth,
 	}
 }
 

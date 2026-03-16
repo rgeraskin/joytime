@@ -3,24 +3,21 @@ package domain
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
 
 // RewardService handles reward-related business logic
 type RewardService struct {
-	db     *gorm.DB
-	logger *log.Logger
-	auth   *CasbinAuthService
+	db   *gorm.DB
+	auth *CasbinAuthService
 }
 
 // NewRewardService creates a new reward service
-func NewRewardService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *RewardService {
+func NewRewardService(db *gorm.DB, auth *CasbinAuthService) *RewardService {
 	return &RewardService{
-		db:     db,
-		logger: logger,
-		auth:   auth,
+		db:   db,
+		auth: auth,
 	}
 }
 

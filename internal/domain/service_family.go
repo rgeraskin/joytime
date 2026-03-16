@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
 
 // FamilyService handles family-related business logic
 type FamilyService struct {
-	db     *gorm.DB
-	logger *log.Logger
-	auth   *CasbinAuthService
+	db   *gorm.DB
+	auth *CasbinAuthService
 }
 
 const (
@@ -22,11 +20,10 @@ const (
 )
 
 // NewFamilyService creates a new family service
-func NewFamilyService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *FamilyService {
+func NewFamilyService(db *gorm.DB, auth *CasbinAuthService) *FamilyService {
 	return &FamilyService{
-		db:     db,
-		logger: logger,
-		auth:   auth,
+		db:   db,
+		auth: auth,
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -12,17 +11,15 @@ import (
 
 // TokenService handles token-related business logic
 type TokenService struct {
-	db     *gorm.DB
-	logger *log.Logger
-	auth   *CasbinAuthService
+	db   *gorm.DB
+	auth *CasbinAuthService
 }
 
 // NewTokenService creates a new token service
-func NewTokenService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *TokenService {
+func NewTokenService(db *gorm.DB, auth *CasbinAuthService) *TokenService {
 	return &TokenService{
-		db:     db,
-		logger: logger,
-		auth:   auth,
+		db:   db,
+		auth: auth,
 	}
 }
 

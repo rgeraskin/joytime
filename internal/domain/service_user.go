@@ -4,24 +4,21 @@ import (
 	"context"
 	"errors"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
 
 // UserService handles user-related business logic
 type UserService struct {
-	db     *gorm.DB
-	logger *log.Logger
-	auth   *CasbinAuthService
+	db   *gorm.DB
+	auth *CasbinAuthService
 }
 
 // NewUserService creates a new user service
-func NewUserService(db *gorm.DB, logger *log.Logger, auth *CasbinAuthService) *UserService {
+func NewUserService(db *gorm.DB, auth *CasbinAuthService) *UserService {
 	return &UserService{
-		db:     db,
-		logger: logger,
-		auth:   auth,
+		db:   db,
+		auth: auth,
 	}
 }
 

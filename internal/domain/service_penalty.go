@@ -3,7 +3,6 @@ package domain
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
 	"github.com/rgeraskin/joytime/internal/models"
 	"gorm.io/gorm"
 )
@@ -11,7 +10,6 @@ import (
 // PenaltyService handles penalty-related business logic
 type PenaltyService struct {
 	db     *gorm.DB
-	logger *log.Logger
 	auth   *CasbinAuthService
 	tokens *TokenService
 }
@@ -19,13 +17,11 @@ type PenaltyService struct {
 // NewPenaltyService creates a new penalty service
 func NewPenaltyService(
 	db *gorm.DB,
-	logger *log.Logger,
 	auth *CasbinAuthService,
 	tokens *TokenService,
 ) *PenaltyService {
 	return &PenaltyService{
 		db:     db,
-		logger: logger,
 		auth:   auth,
 		tokens: tokens,
 	}

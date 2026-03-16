@@ -25,16 +25,16 @@ func NewServices(db *gorm.DB, logger *log.Logger) (*Services, error) {
 		return nil, err
 	}
 
-	tokenService := NewTokenService(db, logger, auth)
+	tokenService := NewTokenService(db, auth)
 
 	return &Services{
-		TaskService:    NewTaskService(db, logger, auth, tokenService),
+		TaskService:    NewTaskService(db, auth, tokenService),
 		TokenService:   tokenService,
-		UserService:    NewUserService(db, logger, auth),
-		FamilyService:  NewFamilyService(db, logger, auth),
-		RewardService:  NewRewardService(db, logger, auth),
-		PenaltyService: NewPenaltyService(db, logger, auth, tokenService),
-		InviteService:  NewInviteService(db, logger, auth),
+		UserService:    NewUserService(db, auth),
+		FamilyService:  NewFamilyService(db, auth),
+		RewardService:  NewRewardService(db, auth),
+		PenaltyService: NewPenaltyService(db, auth, tokenService),
+		InviteService:  NewInviteService(db, auth),
 		Auth:           auth,
 	}, nil
 }
