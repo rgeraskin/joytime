@@ -72,6 +72,9 @@ func (b *Bot) onAddPenaltyTokens(c tele.Context, text, penaltyName string) error
 		},
 	}
 	if err := b.services.PenaltyService.CreatePenalty(bgCtx(), auth, penalty); err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			return c.Send(err.Error())
+		}
 		if isDuplicateKey(err) {
 			return c.Send("❌ Штраф с таким именем уже существует")
 		}

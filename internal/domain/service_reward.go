@@ -31,6 +31,10 @@ func (s *RewardService) CreateReward(
 		return err
 	}
 
+	if err := ValidateEntityCreate(reward.Name, reward.Description, reward.Tokens); err != nil {
+		return err
+	}
+
 	return s.db.WithContext(ctx).Create(reward).Error
 }
 

@@ -38,6 +38,10 @@ func (s *TaskService) CreateTask(
 		return err
 	}
 
+	if err := ValidateEntityCreate(task.Name, task.Description, task.Tokens); err != nil {
+		return err
+	}
+
 	// Set default status if not provided
 	if task.Status == "" {
 		task.Status = TaskStatusNew

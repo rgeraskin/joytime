@@ -36,6 +36,11 @@ func (s *PenaltyService) CreatePenalty(
 	if err := s.auth.RequirePermission(authCtx, "penalties", "create", penalty.FamilyUID); err != nil {
 		return err
 	}
+
+	if err := ValidateEntityCreate(penalty.Name, penalty.Description, penalty.Tokens); err != nil {
+		return err
+	}
+
 	return s.db.WithContext(ctx).Create(penalty).Error
 }
 
