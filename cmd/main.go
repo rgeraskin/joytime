@@ -103,7 +103,9 @@ func main() {
 	if err != nil {
 		logger.Error("Failed to get sql.DB for cleanup", "error", err)
 	} else {
-		_ = sqlDB.Close()
+		if err := sqlDB.Close(); err != nil {
+			logger.Error("Failed to close database connection", "error", err)
+		}
 	}
 
 	logger.Info("Server stopped")
