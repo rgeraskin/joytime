@@ -61,7 +61,10 @@ func (s *UserService) GetFamilyUsers(
 	}
 
 	var users []models.Users
-	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Find(&users).Error
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ?", familyUID).
+		Limit(maxListResults).
+		Find(&users).Error
 	return users, err
 }
 

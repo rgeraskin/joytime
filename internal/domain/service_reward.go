@@ -49,7 +49,11 @@ func (s *RewardService) GetRewardsForFamily(
 	}
 
 	var rewards []models.Rewards
-	err := s.db.WithContext(ctx).Where("family_uid = ?", familyUID).Order("tokens DESC").Find(&rewards).Error
+	err := s.db.WithContext(ctx).
+		Where("family_uid = ?", familyUID).
+		Order("tokens DESC").
+		Limit(maxListResults).
+		Find(&rewards).Error
 	return rewards, err
 }
 

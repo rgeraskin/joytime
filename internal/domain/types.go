@@ -55,6 +55,9 @@ const (
 	MaxTokens            = 1000
 )
 
+// maxListResults is a safety cap on list queries to prevent unbounded result sets.
+const maxListResults = 1000
+
 // AuthContext represents the authentication context of who is making the request
 type AuthContext struct {
 	UserID    string

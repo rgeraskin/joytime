@@ -66,6 +66,7 @@ func (s *TaskService) GetTasksForFamily(
 	err := s.db.WithContext(ctx).
 		Where("family_uid = ?", familyUID).
 		Order("tokens DESC").
+		Limit(maxListResults).
 		Find(&tasks).
 		Error
 	return tasks, err

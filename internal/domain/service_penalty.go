@@ -58,6 +58,7 @@ func (s *PenaltyService) GetPenaltiesForFamily(
 	err := s.db.WithContext(ctx).
 		Where("family_uid = ?", familyUID).
 		Order("tokens DESC").
+		Limit(maxListResults).
 		Find(&penalties).
 		Error
 	return penalties, err
