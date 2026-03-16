@@ -50,11 +50,18 @@ type TokenAddRequest struct {
 
 // respondJSON sends a JSON response
 func (h *APIHandler) respondJSON(w http.ResponseWriter, status int, data any) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		h.logger.Error("Failed to encode JSON response", "error", err)
+		w.Header().Set("Content-Type", ContentTypeJSON)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal server error"}`))
+		return
+	}
 	w.Header().Set("Content-Type", ContentTypeJSON)
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		h.logger.Error("Failed to encode JSON response", "error", err)
-	}
+	_, _ = w.Write(body)
+	_, _ = w.Write([]byte("\n"))
 }
 
 // respondError sends a standardized error response
