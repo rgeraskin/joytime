@@ -77,10 +77,7 @@ func (s *PenaltyService) UpdatePenalty(
 		return nil, err
 	}
 
-	var penalty models.Penalties
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, penaltyName).
-		First(&penalty).Error
+	penalty, err := findByFamilyAndName[models.Penalties](s.db, ctx, familyUID, penaltyName)
 	if err != nil {
 		return nil, err
 	}
@@ -91,21 +88,12 @@ func (s *PenaltyService) UpdatePenalty(
 	updateFields.AddIntIfSet("tokens", updates.Tokens)
 
 	if len(updateFields) > 0 {
-		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Model(&penalty).
-				Select(updateFields.Keys()).
-				Updates(updateFields.ToMap()).
-				Error; err != nil {
-				return err
-			}
-			return tx.First(&penalty, penalty.ID).Error
-		})
-		if err != nil {
+		if err := updateAndReload(s.db, ctx, penalty, penalty.ID, updateFields); err != nil {
 			return nil, err
 		}
 	}
 
-	return &penalty, nil
+	return penalty, nil
 }
 
 // DeletePenalty deletes a penalty
@@ -118,18 +106,7 @@ func (s *PenaltyService) DeletePenalty(
 		return err
 	}
 
-	result := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, penaltyName).
-		Delete(&models.Penalties{})
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-
-	return nil
+	return deleteByFamilyAndName[models.Penalties](s.db, ctx, familyUID, penaltyName)
 }
 
 // ApplyPenalty deducts tokens from a child as a penalty
@@ -151,10 +128,7 @@ func (s *PenaltyService) ApplyPenalty(
 		return nil, ErrUnauthorized
 	}
 
-	var penalty models.Penalties
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, penaltyName).
-		First(&penalty).Error
+	penalty, err := findByFamilyAndName[models.Penalties](s.db, ctx, familyUID, penaltyName)
 	if err != nil {
 		return nil, err
 	}
@@ -173,5 +147,5 @@ func (s *PenaltyService) ApplyPenalty(
 		return nil, err
 	}
 
-	return &penalty, nil
+	return penalty, nil
 }

@@ -80,16 +80,7 @@ func (s *TaskService) GetTask(
 		return nil, err
 	}
 
-	var task models.Tasks
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, taskName).
-		First(&task).
-		Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &task, nil
+	return findByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
 }
 
 // CompleteTask marks a task as completed and awards tokens when parent approves.
@@ -105,11 +96,7 @@ func (s *TaskService) CompleteTask(
 		return nil, err
 	}
 
-	var task models.Tasks
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, taskName).
-		First(&task).
-		Error
+	task, err := findByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
 	if err != nil {
 		return nil, err
 	}
@@ -134,10 +121,10 @@ func (s *TaskService) CompleteTask(
 		// Record which child submitted for review
 		task.AssignedToUserID = authCtx.UserID
 
-		if err := s.db.WithContext(ctx).Save(&task).Error; err != nil {
+		if err := s.db.WithContext(ctx).Save(task).Error; err != nil {
 			return nil, err
 		}
-		return &task, nil
+		return task, nil
 	}
 
 	// Parent approves — mark as completed and award tokens to the assigned child
@@ -172,13 +159,13 @@ func (s *TaskService) CompleteTask(
 		// Reset task to "new" so it's available for the next completion
 		task.Status = TaskStatusNew
 		task.AssignedToUserID = ""
-		return tx.Select("status", "assigned_to_user_id").Save(&task).Error
+		return tx.Select("status", "assigned_to_user_id").Save(task).Error
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &task, nil
+	return task, nil
 }
 
 // RejectTask resets a task from "check" back to "new", clearing the assignee.
@@ -192,10 +179,7 @@ func (s *TaskService) RejectTask(
 		return nil, err
 	}
 
-	var task models.Tasks
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, taskName).
-		First(&task).Error
+	task, err := findByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
 	if err != nil {
 		return nil, err
 	}
@@ -206,11 +190,11 @@ func (s *TaskService) RejectTask(
 
 	task.Status = TaskStatusNew
 	task.AssignedToUserID = ""
-	if err := s.db.WithContext(ctx).Select("status", "assigned_to_user_id").Save(&task).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("status", "assigned_to_user_id").Save(task).Error; err != nil {
 		return nil, err
 	}
 
-	return &task, nil
+	return task, nil
 }
 
 // DeleteTask deletes a task with business rule enforcement
@@ -224,18 +208,7 @@ func (s *TaskService) DeleteTask(
 		return err
 	}
 
-	result := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, taskName).
-		Delete(&models.Tasks{})
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-
-	return nil
+	return deleteByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
 }
 
 // UpdateTask updates a task with business rule enforcement
@@ -254,11 +227,7 @@ func (s *TaskService) UpdateTask(
 		return nil, err
 	}
 
-	var task models.Tasks
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, taskName).
-		First(&task).
-		Error
+	task, err := findByFamilyAndName[models.Tasks](s.db, ctx, familyUID, taskName)
 	if err != nil {
 		return nil, err
 	}
@@ -286,20 +255,10 @@ func (s *TaskService) UpdateTask(
 
 	// Apply updates only if there are fields to update
 	if len(updateFields) > 0 {
-		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Model(&task).
-				Select(updateFields.Keys()).
-				Updates(updateFields.ToMap()).
-				Error; err != nil {
-				return err
-			}
-			// Re-read to return current state (use ID since name may have changed)
-			return tx.First(&task, task.ID).Error
-		})
-		if err != nil {
+		if err := updateAndReload(s.db, ctx, task, task.ID, updateFields); err != nil {
 			return nil, err
 		}
 	}
 
-	return &task, nil
+	return task, nil
 }

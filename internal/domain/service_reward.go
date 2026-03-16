@@ -62,16 +62,7 @@ func (s *RewardService) GetReward(
 		return nil, err
 	}
 
-	var reward models.Rewards
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, rewardName).
-		First(&reward).
-		Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &reward, nil
+	return findByFamilyAndName[models.Rewards](s.db, ctx, familyUID, rewardName)
 }
 
 // UpdateReward updates a reward with business rule enforcement
@@ -89,11 +80,7 @@ func (s *RewardService) UpdateReward(
 		return nil, err
 	}
 
-	var reward models.Rewards
-	err := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, rewardName).
-		First(&reward).
-		Error
+	reward, err := findByFamilyAndName[models.Rewards](s.db, ctx, familyUID, rewardName)
 	if err != nil {
 		return nil, err
 	}
@@ -104,22 +91,12 @@ func (s *RewardService) UpdateReward(
 	updateFields.AddIntIfSet("tokens", updates.Tokens)
 
 	if len(updateFields) > 0 {
-		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Model(&reward).
-				Select(updateFields.Keys()).
-				Updates(updateFields.ToMap()).
-				Error; err != nil {
-				return err
-			}
-			// Re-read to return current state (use ID since name may have changed)
-			return tx.First(&reward, reward.ID).Error
-		})
-		if err != nil {
+		if err := updateAndReload(s.db, ctx, reward, reward.ID, updateFields); err != nil {
 			return nil, err
 		}
 	}
 
-	return &reward, nil
+	return reward, nil
 }
 
 // DeleteReward deletes a reward with business rule enforcement
@@ -132,16 +109,5 @@ func (s *RewardService) DeleteReward(
 		return err
 	}
 
-	result := s.db.WithContext(ctx).
-		Where("family_uid = ? AND name = ?", familyUID, rewardName).
-		Delete(&models.Rewards{})
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-
-	return nil
+	return deleteByFamilyAndName[models.Rewards](s.db, ctx, familyUID, rewardName)
 }
