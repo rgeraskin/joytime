@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
@@ -24,7 +23,7 @@ func (h *APIHandler) handleFamilies(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleFamily(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-		familyUID := strings.TrimPrefix(r.URL.Path, "/api/v1/families/")
+		familyUID, _, _ := parseFamilyEntityPath(r.URL.Path, "/api/v1/families/")
 		if familyUID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrFamilyUIDRequired)
 			return

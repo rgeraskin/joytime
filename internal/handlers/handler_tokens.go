@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/rgeraskin/joytime/internal/domain"
 )
@@ -10,7 +9,7 @@ import (
 // Token endpoints
 func (h *APIHandler) handleUserTokens(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/tokens/users/")
+		userID, _, _ := parseFamilyEntityPath(r.URL.Path, "/api/v1/tokens/users/")
 		if userID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
 			return
@@ -40,7 +39,7 @@ func (h *APIHandler) handleTokenHistory(w http.ResponseWriter, r *http.Request) 
 
 func (h *APIHandler) handleUserTokenHistory(w http.ResponseWriter, r *http.Request) {
 	h.authed(func(w http.ResponseWriter, r *http.Request, authCtx *domain.AuthContext) {
-		userID := strings.TrimPrefix(r.URL.Path, "/api/v1/token-history/users/")
+		userID, _, _ := parseFamilyEntityPath(r.URL.Path, "/api/v1/token-history/users/")
 		if userID == "" {
 			h.respondError(w, http.StatusBadRequest, ErrUserIDRequired)
 			return
