@@ -20,6 +20,7 @@ type Config struct {
 	Host     string
 	Port     string
 	Database string
+	SSLMode  string // PostgreSQL sslmode (default: "disable")
 }
 
 func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) {
@@ -27,13 +28,18 @@ func NewDB(config *Config, fillOnly bool, logger *log.Logger) (*gorm.DB, error) 
 
 	switch config.Type {
 	case "postgres":
+		sslmode := config.SSLMode
+		if sslmode == "" {
+			sslmode = "disable"
+		}
 		dsn := fmt.Sprintf(
-			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 			config.Host,
 			config.User,
 			config.Password,
 			config.Database,
 			config.Port,
+			sslmode,
 		)
 		dialector = postgres.Open(dsn)
 	case "sqlite":

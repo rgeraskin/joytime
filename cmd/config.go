@@ -47,6 +47,7 @@ func (c *Config) load() {
 	c.DB.Host = os.Getenv("PGHOST")
 	c.DB.Port = os.Getenv("PGPORT")
 	c.DB.Database = os.Getenv("PGDATABASE")
+	c.DB.SSLMode = os.Getenv("PGSSLMODE")
 }
 
 func (c *Config) validate() error {
