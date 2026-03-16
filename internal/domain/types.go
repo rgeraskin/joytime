@@ -28,6 +28,13 @@ const (
 	TokenTypeManualAdjustment = "manual_adjustment"
 )
 
+// Token history description prefixes (stored in DB as audit trail)
+const (
+	HistoryDescTask    = "Задание: "
+	HistoryDescReward  = "Награда: "
+	HistoryDescPenalty = "Штраф: "
+)
+
 // Business logic errors
 var (
 	ErrUnauthorized          = errors.New("unauthorized operation")

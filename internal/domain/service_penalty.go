@@ -140,7 +140,7 @@ func (s *PenaltyService) ApplyPenalty(
 		childUserID,
 		-penalty.Tokens,
 		TokenTypePenalty,
-		"Штраф: "+penalty.Name,
+		HistoryDescPenalty+penalty.Name,
 		nil,
 		nil,
 		&penaltyID,

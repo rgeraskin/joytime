@@ -147,7 +147,7 @@ func (s *TaskService) CompleteTask(
 				task.AssignedToUserID,
 				task.Tokens,
 				TokenTypeTaskCompleted,
-				"Задание: "+task.Name,
+				HistoryDescTask+task.Name,
 				&taskID,
 				nil,
 				nil,

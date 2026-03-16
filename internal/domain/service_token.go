@@ -211,7 +211,7 @@ func (s *TokenService) ClaimReward(
 			authCtx.UserID,
 			-reward.Tokens,
 			TokenTypeRewardClaimed,
-			"Награда: "+reward.Name,
+			HistoryDescReward+reward.Name,
 			nil,
 			&rewardID,
 			nil,
