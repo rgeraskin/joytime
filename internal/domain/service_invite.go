@@ -62,19 +62,26 @@ func (s *InviteService) CreateInvite(
 	return invite, nil
 }
 
-// UseInvite finds an unused invite by code, marks it as used, and returns it.
+// UseInvite atomically marks an unused invite as used and returns it.
 // No auth check — used during registration before a user has an auth context.
+// Uses a single UPDATE with WHERE used=false to prevent race conditions.
 func (s *InviteService) UseInvite(ctx context.Context, code string) (*models.Invites, error) {
 	var invite models.Invites
-	err := s.db.WithContext(ctx).
+
+	// Atomically claim the invite: only one concurrent caller can succeed.
+	result := s.db.WithContext(ctx).
+		Model(&invite).
 		Where("code = ? AND used = ?", code, false).
-		First(&invite).Error
-	if err != nil {
-		return nil, err
+		Update("used", true)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
 	}
 
-	invite.Used = true
-	if err := s.db.WithContext(ctx).Save(&invite).Error; err != nil {
+	// Read back the full invite record
+	if err := s.db.WithContext(ctx).Where("code = ?", code).First(&invite).Error; err != nil {
 		return nil, err
 	}
 
