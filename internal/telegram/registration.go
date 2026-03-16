@@ -30,7 +30,10 @@ func (b *Bot) showWelcome(c tele.Context) error {
 func (b *Bot) onFamilyCreate(c tele.Context) error {
 	// Create parent user if not exists
 	userID := makeUserID(c.Sender().ID)
-	user, _ := b.findUser(c.Sender().ID)
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error finding user", err)
+	}
 	if user == nil {
 		newUser := &models.Users{
 			UserID:   userID,
@@ -63,7 +66,10 @@ func (b *Bot) onFamilyCreate(c tele.Context) error {
 
 func (b *Bot) onInviteJoinPrompt(c tele.Context) error {
 	// Ensure user record exists so setState and handleText work
-	user, _ := b.findUser(c.Sender().ID)
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error finding user", err)
+	}
 	if user == nil {
 		newUser := &models.Users{
 			UserID:   makeUserID(c.Sender().ID),

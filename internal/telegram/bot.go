@@ -122,7 +122,10 @@ func (b *Bot) handleStart(c tele.Context) error {
 // handleDeepLink processes /start with an invite code payload
 func (b *Bot) handleDeepLink(c tele.Context, code string) error {
 	// Ensure user record exists
-	user, _ := b.findUser(c.Sender().ID)
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error finding user", err)
+	}
 	if user == nil {
 		newUser := &models.Users{
 			UserID:   makeUserID(c.Sender().ID),
@@ -408,7 +411,11 @@ func (b *Bot) setState(tgID int64, state, inputCtx string) error {
 
 // getUserDisplayName returns the user's name from DB, falling back to Telegram profile name.
 func (b *Bot) getUserDisplayName(c tele.Context) string {
-	user, _ := b.findUser(c.Sender().ID)
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil {
+		b.logger.Error("Failed to find user for display name", "error", err, "tg_id", c.Sender().ID)
+		return extractName(c.Sender())
+	}
 	if user != nil {
 		return user.Name
 	}
