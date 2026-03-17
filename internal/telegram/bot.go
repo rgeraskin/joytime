@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rgeraskin/joytime/internal/domain"
 	"github.com/rgeraskin/joytime/internal/models"
 	tele "gopkg.in/telebot.v4"
@@ -626,13 +627,16 @@ func formatBulkResult(added, errs []string, emptyMsg string) string {
 }
 
 // isDuplicateKey checks if a DB error is a unique constraint violation.
-// Handles both PostgreSQL (SQLSTATE 23505) and SQLite (UNIQUE constraint failed).
+// Uses typed error assertion for PostgreSQL, string matching for SQLite.
 func isDuplicateKey(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "23505") || strings.Contains(msg, "UNIQUE constraint failed")
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
 // numberGrid builds a grid of numbered buttons with placeholder padding.
