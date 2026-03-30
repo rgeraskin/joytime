@@ -1,9 +1,13 @@
 package telegram
 
 import (
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/rgeraskin/joytime/internal/models"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func TestParseBulkInput(t *testing.T) {
@@ -177,6 +181,78 @@ func TestFormatBulkResult(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		result := formatBulkResult(nil, nil, "nothing here")
 		assert.Equal(t, "nothing here", result)
+	})
+}
+
+func TestFormatHistory(t *testing.T) {
+	now := time.Date(2026, 3, 17, 14, 30, 0, 0, time.UTC)
+
+	t.Run("empty history", func(t *testing.T) {
+		result := formatHistory("", nil, 20)
+		assert.Contains(t, result, "Пока пусто")
+	})
+
+	t.Run("with prefix", func(t *testing.T) {
+		result := formatHistory("Child Name", nil, 20)
+		assert.Contains(t, result, "Child Name")
+	})
+
+	t.Run("date and reversed order", func(t *testing.T) {
+		history := []models.TokenHistory{
+			{Amount: 10, Description: "Second", Model: gorm.Model{CreatedAt: now}},
+			{Amount: -5, Description: "First", Model: gorm.Model{CreatedAt: now.Add(-time.Hour)}},
+		}
+		result := formatHistory("", history, 20)
+		// Recent at bottom: "First" line should come before "Second" line
+		firstIdx := strings.Index(result, "First")
+		secondIdx := strings.Index(result, "Second")
+		assert.Greater(t, secondIdx, firstIdx, "recent entries should be at the bottom")
+		// Date format present
+		assert.Contains(t, result, "17.03 14:30")
+	})
+
+	t.Run("strips description prefixes", func(t *testing.T) {
+		history := []models.TokenHistory{
+			{Amount: 10, Description: "Задание: Homework", Model: gorm.Model{CreatedAt: now}},
+			{Amount: -5, Description: "Награда: Ice Cream", Model: gorm.Model{CreatedAt: now}},
+			{Amount: -3, Description: "Штраф: Bad Behavior", Model: gorm.Model{CreatedAt: now}},
+		}
+		result := formatHistory("", history, 20)
+		assert.NotContains(t, result, "Задание:")
+		assert.NotContains(t, result, "Награда:")
+		assert.NotContains(t, result, "Штраф:")
+		assert.Contains(t, result, "Homework")
+		assert.Contains(t, result, "Ice Cream")
+		assert.Contains(t, result, "Bad Behavior")
+	})
+
+	t.Run("manual adjustment description preserved", func(t *testing.T) {
+		history := []models.TokenHistory{
+			{Amount: 5, Description: "Bonus for helping", Model: gorm.Model{CreatedAt: now}},
+		}
+		result := formatHistory("", history, 20)
+		assert.Contains(t, result, "Bonus for helping")
+	})
+
+	t.Run("sign formatting", func(t *testing.T) {
+		history := []models.TokenHistory{
+			{Amount: 10, Description: "gain", Model: gorm.Model{CreatedAt: now}},
+			{Amount: -5, Description: "loss", Model: gorm.Model{CreatedAt: now}},
+		}
+		result := formatHistory("", history, 20)
+		assert.Contains(t, result, "+10")
+		assert.Contains(t, result, "-5")
+	})
+
+	t.Run("limit applied", func(t *testing.T) {
+		history := []models.TokenHistory{
+			{Amount: 1, Description: "a", Model: gorm.Model{CreatedAt: now}},
+			{Amount: 2, Description: "b", Model: gorm.Model{CreatedAt: now}},
+			{Amount: 3, Description: "c", Model: gorm.Model{CreatedAt: now}},
+		}
+		result := formatHistory("", history, 2)
+		// Only first 2 entries (reversed), "c" should not appear
+		assert.NotContains(t, result, " c\n")
 	})
 }
 

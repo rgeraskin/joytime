@@ -500,6 +500,13 @@ func formatList(header string, items []string) string {
 	return sb.String()
 }
 
+// historyDescPrefixes are description prefixes stripped from history display to save space.
+var historyDescPrefixes = []string{
+	domain.HistoryDescTask,
+	domain.HistoryDescReward,
+	domain.HistoryDescPenalty,
+}
+
 func formatHistory(prefix string, history []models.TokenHistory, limit int) string {
 	var sb strings.Builder
 	if prefix != "" {
@@ -514,13 +521,19 @@ func formatHistory(prefix string, history []models.TokenHistory, limit int) stri
 	if limit > 0 && count > limit {
 		count = limit
 	}
-	for i := 0; i < count; i++ {
+	// Iterate in reverse: DB returns newest first, we display oldest first (recent at bottom)
+	for i := count - 1; i >= 0; i-- {
 		h := history[i]
 		sign := "+"
 		if h.Amount < 0 {
 			sign = ""
 		}
-		sb.WriteString(fmt.Sprintf("%s%d 💎 %s\n", sign, h.Amount, h.Description))
+		desc := h.Description
+		for _, p := range historyDescPrefixes {
+			desc = strings.TrimPrefix(desc, p)
+		}
+		ts := h.CreatedAt.Format("02.01 15:04")
+		sb.WriteString(fmt.Sprintf("%s %s%d 💎 %s\n", ts, sign, h.Amount, desc))
 	}
 	return sb.String()
 }
