@@ -37,12 +37,19 @@ changelog:
       - "^test:"
       - "^chore:"
       - "^ci:"
+release:
+  # Allow local publishing of images without creating a GitHub release
+  # (the `release-rc` mise task sets GORELEASER_SKIP_GH_RELEASE=true). CI leaves
+  # it unset, so real tag pushes still create the GitHub release.
+  disable: '{{ envOrDefault "GORELEASER_SKIP_GH_RELEASE" "false" }}'
 kos:
   - repositories:
       - rgeraskin/joytime
     tags:
       - "{{.Version}}"
-      - latest
+      # Only move `latest` for final releases — never for prereleases (e.g. RCs),
+      # so a release candidate cannot clobber the `latest` tag.
+      - "{{ if not .Prerelease }}latest{{ end }}"
     bare: true
     platforms:
       - linux/amd64

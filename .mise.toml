@@ -2,6 +2,7 @@
 air = "1.64.5"
 go = "1.23.2"
 golangci-lint = "latest"
+"ubi:goreleaser/goreleaser" = "2.12.5"
 
 [env]
 APP_NAME = "joytime"
@@ -167,6 +168,54 @@ run = """
 echo '🔍 Checking code...'
 go vet ./...
 golangci-lint run
+"""
+
+# === Release ===
+# Build and publish a release-candidate Docker image to Docker Hub from your
+# machine, reusing the exact same goreleaser/ko config as CI. Intended for
+# testing an image before merging to master. It pushes only the RC version tag
+# (never `latest`) and does NOT create a GitHub release.
+#
+#   mise run release-rc 0.3.0-rc.1
+#
+# Requires `docker login` to Docker Hub beforehand. GITHUB_TOKEN is not needed.
+[tasks."release-rc"]
+description = "Build & push a release-candidate image to Docker Hub (same config as CI). Usage: mise run release-rc <version>"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="${1:-}"
+if [ -z "$VERSION" ]; then
+  echo "❌ Usage: mise run release-rc <version>   (e.g. 0.3.0-rc.1)"
+  exit 1
+fi
+VERSION="${VERSION#v}"   # tolerate a leading 'v'
+
+# Safety: this task is for release candidates only. A non-prerelease version
+# would move the 'latest' tag, which must only happen from CI on a real tag.
+case "$VERSION" in
+  *-*) ;;
+  *)
+    echo "❌ '$VERSION' is not a prerelease. Use an RC suffix, e.g. ${VERSION}-rc.1"
+    echo "   (final releases are published by CI on a vX.Y.Z git tag.)"
+    exit 1
+    ;;
+esac
+
+if ! docker info >/dev/null 2>&1; then
+  echo "❌ Docker daemon is not running."
+  exit 1
+fi
+echo "🔑 Ensure you're logged in to Docker Hub (docker login) for rgeraskin/joytime."
+
+echo "🐳 Building & pushing rgeraskin/joytime:$VERSION (no 'latest', no GitHub release)..."
+GORELEASER_CURRENT_TAG="v$VERSION" \
+GORELEASER_SKIP_GH_RELEASE=true \
+  goreleaser release --clean --skip=validate
+
+echo "✅ Pushed rgeraskin/joytime:$VERSION"
+echo "   Test it: docker run --rm --env-file .env rgeraskin/joytime:$VERSION"
 """
 
 # === Environment Setup ===
