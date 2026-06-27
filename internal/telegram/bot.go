@@ -524,21 +524,23 @@ var historyDescPrefixes = []string{
 const historyPageSize = 20
 
 // historyNavRows builds the keyboard row shown under a history page: the back
-// button, followed (when older entries exist) by a "⬇️ Ещё" button to its right
-// whose callback carries the next page number. moreCallbackPrefix is combined
-// with the next page as "prefix:N".
+// button, then "⬇️ Позже" (more recent — only when not already on the first
+// page) and "⬆️ Раньше" (older — only when older entries exist). Each nav button
+// carries its target page as "prefix:N"; page 0 is the most recent.
 func historyNavRows(
-	moreCallbackPrefix string,
+	callbackPrefix string,
 	page int,
-	hasMore bool,
+	hasOlder bool,
 	backCallback string,
 ) [][]tele.InlineButton {
-	back := btn("⬅️ Назад", backCallback)
-	if hasMore {
-		more := btn("⬇️ Ещё", fmt.Sprintf("%s:%d", moreCallbackPrefix, page+1))
-		return [][]tele.InlineButton{btnRow(back, more)}
+	row := []tele.InlineButton{btn("⬅️ Назад", backCallback)}
+	if page > 0 {
+		row = append(row, btn("⬇️ Позже", fmt.Sprintf("%s:%d", callbackPrefix, page-1)))
 	}
-	return [][]tele.InlineButton{btnRow(back)}
+	if hasOlder {
+		row = append(row, btn("⬆️ Раньше", fmt.Sprintf("%s:%d", callbackPrefix, page+1)))
+	}
+	return [][]tele.InlineButton{btnRow(row...)}
 }
 
 func formatHistory(prefix string, history []models.TokenHistory, limit int) string {
