@@ -119,7 +119,7 @@ func (b *Bot) showHistoryForChild(
 
 	msg := formatHistory(child.Name, history, historyPageSize)
 	rows := historyNavRows("parent_history_more", page, hasMore, "back_parent")
-	return c.Send(msg, inlineKeyboard(rows...))
+	return c.Send(msg, tele.ModeHTML, inlineKeyboard(rows...))
 }
 
 // filterExcludingUser returns all users except the one with excludeUserID.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"time"
@@ -541,9 +542,11 @@ func historyNavRows(
 }
 
 func formatHistory(prefix string, history []models.TokenHistory, limit int) string {
+	// Output uses HTML parse mode (callers send with tele.ModeHTML), so any
+	// user-provided text must be HTML-escaped.
 	var sb strings.Builder
 	if prefix != "" {
-		sb.WriteString(prefix + "\n\n")
+		sb.WriteString(html.EscapeString(prefix) + "\n\n")
 	}
 	sb.WriteString("📜 История:\n\n")
 	if len(history) == 0 {
@@ -557,16 +560,16 @@ func formatHistory(prefix string, history []models.TokenHistory, limit int) stri
 	// Iterate in reverse: DB returns newest first, we display oldest first (recent at bottom)
 	for i := count - 1; i >= 0; i-- {
 		h := history[i]
-		sign := "+"
-		if h.Amount < 0 {
-			sign = ""
-		}
 		desc := h.Description
 		for _, p := range historyDescPrefixes {
 			desc = strings.TrimPrefix(desc, p)
 		}
 		ts := h.CreatedAt.Format("02.01 15:04")
-		sb.WriteString(fmt.Sprintf("%s %s%d 💎 %s\n", ts, sign, h.Amount, desc))
+		// Right-align the signed amount in a 4-char <code> (monospace) field so
+		// the 💎 column lines up — Telegram's proportional font collapses plain
+		// padding, monospace is the only reliable way to align columns.
+		cell := "<code>" + fmt.Sprintf("%4s", fmt.Sprintf("%+d", h.Amount)) + "</code>"
+		sb.WriteString(fmt.Sprintf("%s %s 💎 %s\n", ts, cell, html.EscapeString(desc)))
 	}
 	return sb.String()
 }

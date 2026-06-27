@@ -236,12 +236,16 @@ func TestFormatHistory(t *testing.T) {
 
 	t.Run("sign formatting", func(t *testing.T) {
 		history := []models.TokenHistory{
-			{Amount: 10, Description: "gain", Model: gorm.Model{CreatedAt: now}},
-			{Amount: -5, Description: "loss", Model: gorm.Model{CreatedAt: now}},
+			{Amount: 150, Description: "big gain", Model: gorm.Model{CreatedAt: now}},
+			{Amount: 5, Description: "small gain", Model: gorm.Model{CreatedAt: now}},
+			{Amount: -30, Description: "loss", Model: gorm.Model{CreatedAt: now}},
 		}
 		result := formatHistory("", history, 20)
-		assert.Contains(t, result, "+10")
-		assert.Contains(t, result, "-5")
+		// Amount is right-aligned in a 4-char monospace <code> field (sign +
+		// up to 3 digits), padded with regular spaces for alignment.
+		assert.Contains(t, result, "<code>+150</code>") // 4 chars, no padding
+		assert.Contains(t, result, "<code>  +5</code>") // padded to width 4
+		assert.Contains(t, result, "<code> -30</code>") // padded to width 4
 	})
 
 	t.Run("limit applied", func(t *testing.T) {

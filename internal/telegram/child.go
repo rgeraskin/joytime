@@ -47,7 +47,7 @@ func (b *Bot) showChildHistory(c tele.Context, page int) error {
 
 	msg := formatHistory("", history, historyPageSize)
 	rows := historyNavRows("child_history", page, hasMore, "back_child")
-	return c.Send(msg, inlineKeyboard(rows...))
+	return c.Send(msg, tele.ModeHTML, inlineKeyboard(rows...))
 }
 
 // --- Penalties (read-only) ---
