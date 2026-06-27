@@ -78,7 +78,7 @@ Single test: `go test ./internal/handlers/ -run TestName -v` (DB must be running
 - **Penalties**: list, add (one by one or as list), change price, delete, apply to child
 - **Adjust**: manual token credit/debit with reason
 - **Family**: invite (parent/child), rename, remove member
-- **History**: view token history per child (last 20 entries)
+- **History**: view token history per child, paged 20 at a time (newer/older navigation)
 - **Review**: approve or reject tasks completed by the child
 
 ### Child
@@ -87,7 +87,7 @@ Single test: `go test ./internal/handlers/ -run TestName -v` (DB must be running
 - **Complete task**: select task → send for parent review
 - **Claim reward**: select reward → deduct tokens
 - **Penalties**: view list (read-only)
-- **History**: view own token history
+- **History**: view own token history, paged 20 at a time (newer/older navigation)
 
 ### Bulk Import
 
@@ -230,6 +230,7 @@ mise run db:reset           # Full reset with test data
 mise run db:dump [file]     # Dump database (default dump.sql)
 mise run db:restore [file]  # Restore database
 mise run db:shell           # psql into the database
+mise run release-rc <ver>   # Build & push a release-candidate image to Docker Hub
 ```
 
 ## Theoretical Foundation
