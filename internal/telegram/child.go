@@ -32,19 +32,22 @@ func (b *Bot) showChildMenu(c tele.Context) error {
 
 // --- History ---
 
-func (b *Bot) showChildHistory(c tele.Context) error {
+func (b *Bot) showChildHistory(c tele.Context, page int) error {
 	auth, err := b.authCtx(c.Sender().ID)
 	if err != nil {
 		return b.internalError(c, "Error creating auth context", err)
 	}
 
-	history, err := b.services.TokenService.GetTokenHistory(bgCtx(), auth, auth.UserID)
+	history, hasMore, err := b.services.TokenService.GetTokenHistoryPage(
+		bgCtx(), auth, auth.UserID, page*historyPageSize, historyPageSize,
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting history", err)
 	}
 
-	msg := formatHistory("", history, 20)
-	return c.Send(msg, inlineKeyboard(btnRow(btn("⬅️ Назад", "back_child"))))
+	msg := formatHistory("", history, historyPageSize)
+	rows := historyNavRows("child_history", page, hasMore, "back_child")
+	return c.Send(msg, inlineKeyboard(rows...))
 }
 
 // --- Penalties (read-only) ---

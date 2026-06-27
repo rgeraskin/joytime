@@ -37,6 +37,7 @@ const (
 	stateManualAdjustReason = "manual_adjust_reason"
 	stateManualAdjustTokens = "manual_adjust_tokens"
 	stateRenameMemberName   = "rename_member_name"
+	stateParentHistory      = "parent_history_view"
 )
 
 // Number grid settings
@@ -167,6 +168,15 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		}
 		return b.onApplyPenaltyChildPick(c, num)
 	}
+	// parent_history_more needs the viewed child from state (carries page only)
+	if strings.HasPrefix(data, "parent_history_more:") {
+		page, err := parseNumber(data[len("parent_history_more:"):])
+		if err != nil {
+			b.logger.Warn("Invalid callback number", "data", data, "error", err)
+			return c.Send("❌ Некорректные данные кнопки. Попробуй /start")
+		}
+		return b.onParentHistoryMore(c, page)
+	}
 
 	b.clearState(c.Sender().ID)
 
@@ -207,6 +217,8 @@ func (b *Bot) handleCallback(c tele.Context) error {
 			return b.onDeleteMemberPick(c, num)
 		case "pick_history_child":
 			return b.onHistoryChildPick(c, num)
+		case "child_history":
+			return b.showChildHistory(c, num)
 		}
 	}
 
@@ -286,7 +298,7 @@ func (b *Bot) handleCallback(c tele.Context) error {
 	case "child_penalties":
 		return b.showChildPenalties(c)
 	case "child_history":
-		return b.showChildHistory(c)
+		return b.showChildHistory(c, 0)
 	case "child_task_done":
 		return b.onTaskDonePrompt(c)
 	case "child_reward_claim":
@@ -505,6 +517,27 @@ var historyDescPrefixes = []string{
 	domain.HistoryDescTask,
 	domain.HistoryDescReward,
 	domain.HistoryDescPenalty,
+}
+
+// historyPageSize is how many token-history entries a single page displays.
+const historyPageSize = 20
+
+// historyNavRows builds the keyboard row shown under a history page: the back
+// button, followed (when older entries exist) by a "⬇️ Ещё" button to its right
+// whose callback carries the next page number. moreCallbackPrefix is combined
+// with the next page as "prefix:N".
+func historyNavRows(
+	moreCallbackPrefix string,
+	page int,
+	hasMore bool,
+	backCallback string,
+) [][]tele.InlineButton {
+	back := btn("⬅️ Назад", backCallback)
+	if hasMore {
+		more := btn("⬇️ Ещё", fmt.Sprintf("%s:%d", moreCallbackPrefix, page+1))
+		return [][]tele.InlineButton{btnRow(back, more)}
+	}
+	return [][]tele.InlineButton{btnRow(back)}
 }
 
 func formatHistory(prefix string, history []models.TokenHistory, limit int) string {

@@ -32,7 +32,7 @@ func (b *Bot) showParentHistoryPrompt(c tele.Context) error {
 
 	// Single child — go directly
 	if len(children) == 1 {
-		return b.showHistoryForChild(c, auth, children[0])
+		return b.showHistoryForChild(c, auth, children[0], 0)
 	}
 
 	// Multiple children — show picker
@@ -66,21 +66,60 @@ func (b *Bot) onHistoryChildPick(c tele.Context, num int) error {
 		return c.Send("❌ Неверный номер")
 	}
 
-	return b.showHistoryForChild(c, auth, children[num-1])
+	return b.showHistoryForChild(c, auth, children[num-1], 0)
+}
+
+// onParentHistoryMore renders the next page of the currently-viewed child's
+// history. The child being viewed is read from state (set by showHistoryForChild)
+// since the callback data only carries the page number.
+func (b *Bot) onParentHistoryMore(c tele.Context, page int) error {
+	auth, err := b.authCtx(c.Sender().ID)
+	if err != nil {
+		return b.internalError(c, "Error creating auth context", err)
+	}
+
+	user, err := b.findUser(c.Sender().ID)
+	if err != nil || user == nil {
+		return b.internalError(c, "Error finding user", err)
+	}
+
+	state, err := decodeStateJSON(user.InputContext)
+	if err != nil || state["user"] == "" {
+		return c.Send("Сессия истекла. Попробуй /start")
+	}
+
+	return b.showHistoryForChild(c, auth, models.Users{
+		UserID: state["user"],
+		Name:   state["name"],
+	}, page)
 }
 
 func (b *Bot) showHistoryForChild(
 	c tele.Context,
 	auth *domain.AuthContext,
 	child models.Users,
+	page int,
 ) error {
-	history, err := b.services.TokenService.GetTokenHistory(bgCtx(), auth, child.UserID)
+	history, hasMore, err := b.services.TokenService.GetTokenHistoryPage(
+		bgCtx(), auth, child.UserID, page*historyPageSize, historyPageSize,
+	)
 	if err != nil {
 		return b.internalError(c, "Error getting history", err)
 	}
 
-	msg := formatHistory(child.Name, history, 20)
-	return c.Send(msg, inlineKeyboard(btnRow(btn("⬅️ Назад", "back_parent"))))
+	// Remember which child is being viewed so the "show older" button can page
+	// without re-encoding the child identity into the limited callback data.
+	ctx, err := encodeStateJSON(map[string]string{"user": child.UserID, "name": child.Name})
+	if err != nil {
+		return b.internalError(c, "Error encoding state", err)
+	}
+	if err := b.setState(c.Sender().ID, stateParentHistory, ctx); err != nil {
+		return b.internalError(c, "Error setting state", err)
+	}
+
+	msg := formatHistory(child.Name, history, historyPageSize)
+	rows := historyNavRows("parent_history_more", page, hasMore, "back_parent")
+	return c.Send(msg, inlineKeyboard(rows...))
 }
 
 // filterExcludingUser returns all users except the one with excludeUserID.

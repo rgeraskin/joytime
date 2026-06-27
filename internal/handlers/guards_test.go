@@ -333,6 +333,89 @@ func TestTokenHistoryAccess(t *testing.T) {
 	})
 }
 
+func TestTokenHistoryPaging(t *testing.T) {
+	setupTestDB(t)
+	family, parent, child, _ := setupServiceTestData(t)
+
+	parentCtx := &domain.AuthContext{
+		UserID:    parent.UserID,
+		UserRole:  domain.RoleParent,
+		FamilyUID: family.UID,
+	}
+	childCtx := &domain.AuthContext{
+		UserID:    child.UserID,
+		UserRole:  domain.RoleChild,
+		FamilyUID: family.UID,
+	}
+
+	// Create 25 history entries (newest last). Token type alternates so balance
+	// never goes negative, but the count is what matters here.
+	const total = 25
+	for i := 0; i < total; i++ {
+		_, err := testHandler.services.TokenService.AddTokensToUser(
+			context.Background(), parentCtx, child.UserID,
+			10, domain.TokenTypeManualAdjustment, fmt.Sprintf("Entry %d", i), nil, nil, nil,
+		)
+		require.NoError(t, err)
+	}
+
+	t.Run("First page is full and reports more", func(t *testing.T) {
+		page, hasMore, err := testHandler.services.TokenService.GetTokenHistoryPage(
+			context.Background(), childCtx, child.UserID, 0, 20,
+		)
+		require.NoError(t, err)
+		assert.Len(t, page, 20)
+		assert.True(t, hasMore)
+		// Newest first within the page.
+		assert.True(t, page[0].CreatedAt.After(page[1].CreatedAt) || page[0].CreatedAt.Equal(page[1].CreatedAt))
+	})
+
+	t.Run("Second page holds the remainder and reports no more", func(t *testing.T) {
+		page, hasMore, err := testHandler.services.TokenService.GetTokenHistoryPage(
+			context.Background(), childCtx, child.UserID, 20, 20,
+		)
+		require.NoError(t, err)
+		assert.Len(t, page, total-20)
+		assert.False(t, hasMore)
+	})
+
+	t.Run("Pages do not overlap", func(t *testing.T) {
+		p0, _, err := testHandler.services.TokenService.GetTokenHistoryPage(
+			context.Background(), childCtx, child.UserID, 0, 20,
+		)
+		require.NoError(t, err)
+		p1, _, err := testHandler.services.TokenService.GetTokenHistoryPage(
+			context.Background(), childCtx, child.UserID, 20, 20,
+		)
+		require.NoError(t, err)
+
+		seen := make(map[uint]bool)
+		for _, h := range p0 {
+			seen[h.ID] = true
+		}
+		for _, h := range p1 {
+			assert.False(t, seen[h.ID], "entry %d appeared on both pages", h.ID)
+		}
+	})
+
+	t.Run("Offset past the end yields empty page", func(t *testing.T) {
+		page, hasMore, err := testHandler.services.TokenService.GetTokenHistoryPage(
+			context.Background(), childCtx, child.UserID, 1000, 20,
+		)
+		require.NoError(t, err)
+		assert.Empty(t, page)
+		assert.False(t, hasMore)
+	})
+
+	t.Run("Child cannot page another user's history", func(t *testing.T) {
+		_, _, err := testHandler.services.TokenService.GetTokenHistoryPage(
+			context.Background(), childCtx, parent.UserID, 0, 20,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthorized")
+	})
+}
+
 func TestFamilyMemberManagement(t *testing.T) {
 	setupTestDB(t)
 	family, parent, child, _ := setupServiceTestData(t)

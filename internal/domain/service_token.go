@@ -183,6 +183,40 @@ func (s *TokenService) GetTokenHistory(
 	return history, err
 }
 
+// GetTokenHistoryPage retrieves one page of token history for a user, newest
+// first. offset skips the most recent entries, limit caps the page size. The
+// returned bool reports whether older entries exist beyond this page (so the
+// caller can decide whether to offer a "show older" control).
+func (s *TokenService) GetTokenHistoryPage(
+	ctx context.Context,
+	authCtx *AuthContext,
+	userID string,
+	offset, limit int,
+) ([]models.TokenHistory, bool, error) {
+	if err := s.requireTokenReadPermission(ctx, authCtx, userID); err != nil {
+		return nil, false, err
+	}
+
+	var history []models.TokenHistory
+	// Fetch one extra row to detect a next page without a separate COUNT query.
+	err := s.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit + 1).
+		Find(&history).
+		Error
+	if err != nil {
+		return nil, false, err
+	}
+
+	hasMore := len(history) > limit
+	if hasMore {
+		history = history[:limit]
+	}
+	return history, hasMore, nil
+}
+
 // ClaimReward processes a reward claim with atomic balance check + deduction.
 // Re-reads the reward inside the transaction to prevent TOCTOU races
 // (e.g. a parent updating the reward cost between fetch and claim).
